@@ -1,0 +1,24 @@
+# Copy selected keys into a target repository's .owndiff.yml.
+# OwnDiff deep-merges this file shape over configs/default_config.yaml.
+
+risk:
+  thresholds:
+    medium: 20
+    high: 45
+    critical: 75
+  domain_rules:
+    feature_flags:
+      score: 18
+      severity: "medium"
+      path_terms: ["flags", "experiments"]
+      content_terms: ["feature_flag", "experiment"]
+      message: "Touches feature flag or experiment rollout behavior"
+
+questions:
+  domain:
+    feature_flags:
+      question: "Who owns this rollout, what is the kill switch, and how will exposure be monitored?"
+      expected_evidence: ["owner", "kill switch", "monitoring signal"]
+
+mcq:
+  required_score_percent: 100

@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "owndiff"
+version = "0.1.0"
+description = "OwnDiff: local human-ownership checks for AI-assisted code diffs."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["PyYAML>=6.0"]
+authors = [{name = "OwnDiff"}]
+keywords = [
+  "agent-skills",
+  "ai-agents",
+  "ai-coding",
+  "claude-code",
+  "codex",
+  "code-review",
+  "coding-agents",
+  "gemini-cli",
+  "git-diff",
+  "governance",
+  "mcq",
+  "merge-gate",
+  "opencode",
+  "owasp",
+  "ownership",
+  "pull-request",
+  "security",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["scripts/owndifflib"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/SKILL.md",
+  "/README.md",
+  "/CONTRIBUTING.md",
+  "/SECURITY.md",
+  "/pyproject.toml",
+  "/.claude-plugin",
+  "/.github",
+  "/agents",
+  "/configs",
+  "/docs",
+  "/scripts",
+  "/tests",
+]

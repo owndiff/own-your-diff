@@ -1,0 +1,161 @@
+schema_version: owndiff.agent_install.v1
+
+default_agents:
+  - claude-code
+  - codex
+  - opencode
+  - gemini-cli
+  - pi
+  - hermes
+  - devin
+
+rule_body: |
+  Before pushing, opening, or updating a merge request, run:
+
+  {{python_command}} {{skill_dir}}/scripts/run_owndiff.py --repo . --out-dir .owndiff
+
+  If .owndiff/ownership-gate.json says "agent_may_push_merge_request": true, you may proceed after normal tests pass.
+
+  If the gate is pending_answers, failed, or "agent_may_push_merge_request" is false, do not stop after a summary. Immediately start the ownership-answer flow before pushing or opening/updating a merge request.
+
+  When reporting the result to the user, use a compact gate summary and avoid absolute local paths unless the user explicitly asks for them:
+
+  OwnDiff Gate: Passed
+  Mode: report_only
+  Push/MR: allowed
+
+  - Risk: low (0/100)
+  - Diff: 0 files changed
+  - Test gap: no
+  - Evidence: .owndiff/ownership-report.md
+
+  If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked", set "Push/MR: blocked", and then immediately run the TUI MCQ flow or print the chat fallback questions.
+
+  First try the terminal picker when this agent session can run an interactive TTY. It lets the human use arrow keys, a/b/c/d shortcuts, Enter, and terminal mouse clicks when supported:
+
+  {{python_command}} {{skill_dir}}/scripts/quiz_tui.py --mcq .owndiff/ownership-mcq.json --answer-key .owndiff/ownership-answer-key.json --answers-out .owndiff/ownership-answers.json --gate-out .owndiff/ownership-gate.json --evaluate
+
+  Interpret quiz_tui.py exit codes this way:
+  - 0 means answers were written and the evaluated gate passed.
+  - 2 means setup/no-TTY failure; use the chat fallback below.
+  - 3 means answers were written but the evaluated gate failed.
+  - 130 means the human canceled.
+
+  If quiz_tui.py reports that no TTY is available, present the MCQ questions directly in the current agent chat before waiting for the user. Do not require the human to open generated files for answering.
+
+  Render the chat fallback questions with:
+
+  {{python_command}} {{skill_dir}}/scripts/present_mcq.py --mcq .owndiff/ownership-mcq.json
+
+  Ask the human to answer in chat using a compact format such as:
+
+  q1=c q2=b q3=a
+
+  Then submit and evaluate the selections with:
+
+  {{python_command}} {{skill_dir}}/scripts/submit_answers.py --mcq .owndiff/ownership-mcq.json --answer-key .owndiff/ownership-answer-key.json --answers-out .owndiff/ownership-answers.json --gate-out .owndiff/ownership-gate.json --evaluate q1=c q2=b q3=a
+
+  Replace the q1/q2/q3 example with the human's actual selections.
+
+  Keep .owndiff/ownership-answer-key.json local. Never print or paste the answer key into chat.
+
+  Do not push, open, or update the merge request unless the evaluated gate says "agent_may_push_merge_request": true.
+
+  The real interactive TUI matches the terminal quiz and review panels shown in the README GIF. The GIF also includes non-interactive install/setup/gate storyboard frames; do not imply those outer slides are part of the live curses TUI.
+
+agents:
+  claude-code:
+    description: Claude Code project skill plus durable project instruction.
+    docs_url: https://code.claude.com/docs/en/skills
+    actions:
+      - type: append_marked
+        path: CLAUDE.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+      - type: symlink
+        path: .claude/skills/owndiff
+        target: "{{skill_dir}}"
+
+  codex:
+    description: OpenAI Codex project instructions plus project skill.
+    docs_url: https://developers.openai.com/codex/guides/agents-md
+    actions:
+      - type: append_marked
+        path: AGENTS.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+      - type: symlink
+        path: .agents/skills/owndiff
+        target: "{{skill_dir}}"
+
+  opencode:
+    description: OpenCode project instructions plus project skill.
+    docs_url: https://opencode.ai/docs/rules/
+    actions:
+      - type: append_marked
+        path: AGENTS.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+      - type: symlink
+        path: .agents/skills/owndiff
+        target: "{{skill_dir}}"
+
+  gemini-cli:
+    description: Gemini CLI project context plus project skill alias.
+    docs_url: https://geminicli.com/docs/cli/skills/
+    actions:
+      - type: append_marked
+        path: GEMINI.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+      - type: symlink
+        path: .agents/skills/owndiff
+        target: "{{skill_dir}}"
+
+  pi:
+    description: Pi project context plus project skill alias.
+    docs_url: https://pi.dev/docs/latest/skills
+    actions:
+      - type: append_marked
+        path: AGENTS.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+      - type: symlink
+        path: .agents/skills/owndiff
+        target: "{{skill_dir}}"
+
+  hermes:
+    description: Hermes project instructions through AGENTS.md.
+    docs_url: https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files
+    actions:
+      - type: append_marked
+        path: AGENTS.md
+        content: |
+          ## OwnDiff Ownership Gate
+
+          {{rule_body}}
+
+  devin:
+    description: Devin Desktop workspace rule.
+    docs_url: https://docs.devin.ai/desktop/cascade/memories
+    actions:
+      - type: write_file
+        path: .devin/rules/owndiff.md
+        content: |
+          ---
+          trigger: always_on
+          ---
+
+          # OwnDiff Ownership Gate
+
+          {{rule_body}}
