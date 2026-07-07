@@ -1,0 +1,5 @@
+{
+  "name": "owndiff",
+  "description": "Local ownership gate and MCQ approval skill for AI-assisted code diffs.",
+  "version": "0.1.0"
+}

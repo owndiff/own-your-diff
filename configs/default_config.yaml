@@ -1,0 +1,360 @@
+schema_version: owndiff.config.v1
+
+diff:
+  internal_exclude_prefixes:
+    - ".owndiff/"
+  language_extensions:
+    ".py": "python"
+    ".js": "javascript"
+    ".jsx": "javascript"
+    ".ts": "typescript"
+    ".tsx": "typescript"
+    ".go": "go"
+    ".java": "java"
+    ".rb": "ruby"
+    ".rs": "rust"
+    ".php": "php"
+    ".cs": "csharp"
+    ".kt": "kotlin"
+    ".swift": "swift"
+    ".sql": "sql"
+    ".yaml": "yaml"
+    ".yml": "yaml"
+    ".json": "json"
+    ".toml": "toml"
+    ".tf": "terraform"
+    ".sh": "shell"
+  test_file:
+    path_markers:
+      - "/test/"
+      - "/tests/"
+      - "/__tests__/"
+    name_prefixes:
+      - "test_"
+    name_suffixes:
+      - "_test.py"
+      - "_test.go"
+      - "test.java"
+      - "spec.rb"
+    name_contains:
+      - ".test."
+      - ".spec."
+
+test_gap:
+  code_languages:
+    - "python"
+    - "javascript"
+    - "typescript"
+    - "go"
+    - "java"
+    - "ruby"
+    - "rust"
+    - "php"
+    - "csharp"
+    - "kotlin"
+    - "swift"
+  source_prefixes:
+    - "src/"
+    - "lib/"
+    - "app/"
+  source_prefix_test_patterns:
+    - "tests/{stripped_path}"
+  candidate_patterns:
+    ".py":
+      - "{parent}/test_{stem}.py"
+      - "{parent}/{stem}_test.py"
+      - "tests/{path}"
+      - "tests/test_{stem}.py"
+      - "tests/test_{package}/test_{stem}.py"
+      - "tests/{package}/test_{stem}.py"
+    ".js":
+      - "{parent}/{stem}.test{suffix}"
+      - "{parent}/{stem}.spec{suffix}"
+      - "{parent}/__tests__/{stem}.test{suffix}"
+      - "tests/{stem}.test{suffix}"
+    ".jsx":
+      - "{parent}/{stem}.test{suffix}"
+      - "{parent}/{stem}.spec{suffix}"
+      - "{parent}/__tests__/{stem}.test{suffix}"
+      - "tests/{stem}.test{suffix}"
+    ".ts":
+      - "{parent}/{stem}.test{suffix}"
+      - "{parent}/{stem}.spec{suffix}"
+      - "{parent}/__tests__/{stem}.test{suffix}"
+      - "tests/{stem}.test{suffix}"
+    ".tsx":
+      - "{parent}/{stem}.test{suffix}"
+      - "{parent}/{stem}.spec{suffix}"
+      - "{parent}/__tests__/{stem}.test{suffix}"
+      - "tests/{stem}.test{suffix}"
+    ".go":
+      - "{parent}/{stem}_test.go"
+    ".java":
+      - "{parent}/{stem}Test.java"
+      - "src/test/{path}"
+    ".rb":
+      - "{parent}/{stem}_spec.rb"
+      - "spec/{path}"
+  default_candidate_patterns:
+    - "tests/{name}"
+
+risk:
+  max_score: 100
+  thresholds:
+    medium: 25
+    high: 50
+    critical: 80
+  gate_modes:
+    low: "report_only"
+    medium: "ask_ownership_questions"
+    high: "require_ownership_questions"
+    critical: "require_explicit_human_review"
+  ownership_requirements:
+    low:
+      min_ownership_score: 0
+      require_tests: false
+      require_rollback_plan: false
+    medium:
+      min_ownership_score: 70
+      require_tests: false
+      require_rollback_plan: false
+    high:
+      min_ownership_score: 85
+      require_tests: true
+      require_rollback_plan: true
+    critical:
+      min_ownership_score: 95
+      require_tests: true
+      require_rollback_plan: true
+  skip:
+    paths:
+      - "docs/**"
+      - "**/*.md"
+      - "**/*.txt"
+      - "CHANGELOG*"
+  size_rules:
+    files:
+      - id: "size.files"
+        min: 12
+        score: 12
+        severity: "medium"
+        message: "Large surface area: {files_changed} files changed"
+    lines:
+      - id: "size.lines.critical"
+        min: 1000
+        score: 28
+        severity: "high"
+        message: "Very large diff: {lines_changed} changed lines"
+      - id: "size.lines.high"
+        min: 300
+        score: 16
+        severity: "medium"
+        message: "Large diff: {lines_changed} changed lines"
+      - id: "size.lines.medium"
+        min: 100
+        score: 8
+        severity: "low"
+        message: "Moderate diff size: {lines_changed} changed lines"
+  path_rules:
+    critical:
+      score: 42
+      severity: "critical"
+      message: "Changed critical-risk path pattern: {matches}"
+      paths:
+        - ".env"
+        - ".env.*"
+        - "**/secrets/**"
+        - "**/*secret*"
+        - "**/*credential*"
+        - "**/*private-key*"
+    high:
+      score: 28
+      severity: "high"
+      message: "Changed high-risk path pattern: {matches}"
+      paths:
+        - "**/auth/**"
+        - "**/authorization/**"
+        - "**/permissions/**"
+        - "**/rbac/**"
+        - "**/payments/**"
+        - "**/billing/**"
+        - "**/migrations/**"
+        - "**/infra/**"
+        - "**/terraform/**"
+        - ".github/workflows/**"
+    medium:
+      score: 12
+      severity: "medium"
+      message: "Changed medium-risk path pattern: {matches}"
+      paths:
+        - "**/api/**"
+        - "**/config/**"
+        - "**/middleware/**"
+        - "pyproject.toml"
+        - "setup.py"
+        - "setup.cfg"
+        - "Pipfile"
+        - "package.json"
+        - "package-lock.json"
+        - "requirements*.txt"
+        - "tox.ini"
+        - "uv.lock"
+        - "poetry.lock"
+  domain_rules:
+    auth:
+      score: 24
+      severity: "high"
+      path_terms: ["auth", "session", "login", "oauth", "jwt", "signer"]
+      content_terms: ["session", "jwt", "oauth", "refresh token", "password", "credential", "signed_value", "max_age", "signatureexpired"]
+      message: "Touches authentication or session behavior"
+    authorization:
+      score: 24
+      severity: "high"
+      path_terms: ["permission", "permissions", "rbac", "roles", "tenant", "policy"]
+      content_terms: ["rbac", "permission", "tenant", "role", "authorize", "authorization", "access control"]
+      message: "Touches authorization, tenant isolation, or permissions"
+    payments:
+      score: 22
+      severity: "high"
+      path_terms: ["payment", "payments", "billing", "stripe", "invoice", "webhook"]
+      content_terms: ["payment", "billing", "stripe", "refund", "charge", "invoice", "webhook"]
+      message: "Touches payments, billing, or webhook processing"
+    database:
+      score: 18
+      severity: "high"
+      path_terms: ["migration", "migrations", "schema", "models"]
+      content_terms: ["alter table", "drop table", "delete from", "create index", "migration"]
+      message: "Touches database schema or data mutation behavior"
+    execution:
+      score: 22
+      severity: "high"
+      path_terms: ["scripts", "hooks"]
+      content_terms: ["shell=true", "os.system", "subprocess", "eval(", "exec(", "child_process", "spawn("]
+      message: "Touches command execution or dynamic code execution paths"
+    crypto:
+      score: 26
+      severity: "high"
+      path_terms: ["crypto", "encrypt", "decrypt", "hash", "signer", "signature", "signed", "timed"]
+      content_terms: ["encrypt", "decrypt", "cipher", "hashlib", "bcrypt", "scrypt", "private key", "signature", "signer", "unsign", "timestamp", "hmac", "digest"]
+      message: "Touches cryptography or sensitive hashing behavior"
+    concurrency:
+      score: 14
+      severity: "medium"
+      path_terms: ["worker", "queue", "lock", "thread"]
+      content_terms: ["asyncio", "thread", "mutex", "lock", "race", "transaction", "queue"]
+      message: "Touches concurrency, async, queue, or transaction behavior"
+    infra:
+      score: 18
+      severity: "high"
+      path_terms: [".github/workflows", "terraform", "infra", "deploy", "dockerfile", "kubernetes", "helm"]
+      content_terms: ["permissions:", "secrets.", "deploy", "terraform", "iam:", "assume-role"]
+      message: "Touches infrastructure, CI, or deployment permissions"
+    dependencies:
+      score: 12
+      severity: "medium"
+      path_terms: ["package.json", "package-lock.json", "requirements", "pyproject.toml", "poetry.lock", "uv.lock", "setup.py", "setup.cfg", "pipfile", "tox.ini"]
+      content_terms: ["dependencies", "devdependencies", "requires-python", "version"]
+      message: "Touches dependency or package metadata"
+  secret_patterns:
+    - id: "aws_access_key"
+      pattern: "AKIA[0-9A-Z]{16}"
+    - id: "private_key"
+      pattern: "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    - id: "named_secret"
+      pattern: "(?i)(api[_-]?key|secret|password|token)\\s*[:=]\\s*[\\\"']?[A-Za-z0-9_./+=-]{16,}"
+  secret_addition:
+    score: 45
+    severity: "critical"
+    message: "Detected {secret_hits} added line(s) with secret-like values; values are intentionally redacted"
+  deleted_tests:
+    score: 12
+    severity: "medium"
+    message: "Deletes test files"
+  test_gap:
+    risky:
+      score: 16
+      severity: "high"
+      message: "Risky code changed without a changed or nearby test file"
+    standard:
+      score: 8
+      severity: "medium"
+      message: "Code changed without a changed or nearby test file"
+  docs_only:
+    max_score: 10
+    severity: "low"
+    message: "Only skipped documentation/text paths changed"
+
+questions:
+  question_counts:
+    low: 0
+    medium: 3
+    high: 5
+    critical: 7
+  dimension_order:
+    low: ["intent"]
+    medium: ["intent", "runtime_behavior", "failure_modes", "tests", "blast_radius", "rollback"]
+    high: ["failure_modes", "rollback", "tests", "runtime_behavior", "blast_radius", "intent"]
+    critical: ["failure_modes", "rollback", "tests", "runtime_behavior", "blast_radius", "intent"]
+  generic:
+    intent:
+      question: "What user-visible or system behavior changed, and why is this change needed?"
+      expected_evidence: ["reason for the change", "behavior before and after"]
+    runtime_behavior:
+      question: "Walk through the runtime path introduced or modified by this diff."
+      expected_evidence: ["call path or execution path", "changed files"]
+    blast_radius:
+      question: "Which callers, routes, jobs, users, data, or services could be affected by this change?"
+      expected_evidence: ["affected callers/users/services", "safe and unsafe cases"]
+    failure_modes:
+      question: "What is the most likely way this change could fail in production, and what symptom would show it?"
+      expected_evidence: ["likely production symptom", "main assumption that could be wrong"]
+    tests:
+      question: "Which automated or manual test proves the risky behavior works, and what would fail if the assumption is wrong?"
+      expected_evidence: ["test name or scenario", "expected failing behavior if broken"]
+    rollback:
+      question: "How would you roll this change back safely if it causes production issues?"
+      expected_evidence: ["revert or feature flag plan", "data/config compatibility"]
+  domain:
+    auth:
+      question: "What happens when the credential, token, or session is missing, expired, invalid, or reused?"
+      expected_evidence: ["missing/expired/reused token behavior", "fail-open versus fail-closed behavior", "affected clients"]
+    authorization:
+      question: "What prevents privilege escalation or cross-tenant access after this change?"
+      expected_evidence: ["tenant boundary", "role/permission check", "negative authorization test"]
+    payments:
+      question: "How does this change avoid duplicate charges, duplicate webhook handling, or inconsistent billing state?"
+      expected_evidence: ["idempotency", "retry behavior", "refund/charge edge case"]
+    database:
+      question: "Is the schema or data change backward-compatible, and what is the rollback plan if old and new app versions overlap?"
+      expected_evidence: ["backward compatibility", "data preservation", "migration rollback"]
+    execution:
+      question: "What untrusted input can reach the command or dynamic execution path, and what constrains it?"
+      expected_evidence: ["input source", "allowlist or escaping", "least privilege"]
+    crypto:
+      question: "Which security property is this crypto/hash change preserving, and how is key or secret material protected?"
+      expected_evidence: ["confidentiality/integrity goal", "key handling", "algorithm choice"]
+    concurrency:
+      question: "What race, ordering, retry, or transaction edge case does this change introduce or prevent?"
+      expected_evidence: ["race/ordering case", "locking or transaction boundary", "retry behavior"]
+    infra:
+      question: "What deployment, CI, permission, or environment behavior changes, and how would you detect a bad rollout?"
+      expected_evidence: ["permission delta", "deployment impact", "rollback signal"]
+    dependencies:
+      question: "What new dependency, version, or lockfile risk is introduced, including transitive or supply-chain impact?"
+      expected_evidence: ["new package/version", "transitive risk", "compatibility test"]
+
+mcq:
+  enabled: true
+  required_score_percent: 100
+  max_options_per_question: 4
+  default_correct_prefix: "A complete owner answer should cover"
+  default_distractors:
+    - "This can be skipped because the AI generated the change."
+    - "It is enough to say that tests pass without explaining behavior."
+    - "Only the changed line count matters; affected behavior does not need review."
+    - "The change is safe because it is small."
+  gate:
+    passed_status: "passed"
+    failed_status: "failed"
+    pending_status: "pending_answers"
+    report_only_status: "report_only"

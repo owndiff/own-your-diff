@@ -1,0 +1,13 @@
+{
+  "name": "owndiff",
+  "owner": {
+    "name": "owndiff"
+  },
+  "plugins": [
+    {
+      "name": "owndiff",
+      "source": "./",
+      "description": "Local ownership gate and MCQ approval skill for AI-assisted code diffs."
+    }
+  ]
+}

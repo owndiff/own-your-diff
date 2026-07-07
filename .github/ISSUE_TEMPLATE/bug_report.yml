@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible OwnDiff bug.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Do not paste secrets, private source code, local absolute paths, tokens, or generated reports that contain confidential repository details.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Use a minimal public example when possible.
+      placeholder: |
+        1. Create or open a git repo.
+        2. Change ...
+        3. Run ...
+        4. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "3.11.9"
+    validations:
+      required: true
+
+  - type: input
+    id: owndiff-version
+    attributes:
+      label: OwnDiff version or commit
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: false
+
+  - type: textarea
+    id: sanitized-output
+    attributes:
+      label: Sanitized output
+      description: Paste only redacted output that does not reveal private paths, secrets, or source code.
+      render: shell
+    validations:
+      required: false

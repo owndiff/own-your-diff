@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a focused improvement for OwnDiff.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please avoid sharing private source code, tokens, customer data, local absolute paths, or confidential generated reports.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What workflow or gap should OwnDiff handle better?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, config, agent integration, or output you want.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Agent installation
+        - MCQ gate
+        - Risk scoring
+        - Test gap detection
+        - Configuration
+        - Documentation
+        - Security hardening
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional context or tradeoffs.
+    validations:
+      required: false

@@ -1,0 +1,4 @@
+interface:
+  display_name: "OwnDiff"
+  short_description: "Verify human ownership of risky diffs"
+  default_prompt: "Use $owndiff to analyze my current git diff and create an ownership report before I call the change ready."
