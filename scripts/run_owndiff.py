@@ -25,6 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", help="Optional OwnDiff config override path.")
     parser.add_argument("--policy", dest="config_alias", help="Deprecated alias for --config.")
     parser.add_argument("--out-dir", default=".owndiff", help="Output directory inside the target repo.")
+    parser.add_argument(
+        "--llm-response",
+        help="JSON response produced by the current agent LLM/API for a prior agent-provider question prompt.",
+    )
     return parser
 
 
@@ -48,12 +52,26 @@ def main(argv: list[str] | None = None) -> int:
         gate_path = out_dir / "ownership-gate.json"
         report_path = out_dir / "ownership-report.md"
         record_path = out_dir / "ownership-record.json"
+        prompt_path = out_dir / "question-prompt.md"
+        request_path = out_dir / "question-request.json"
+        response_path = out_dir / "question-response.json"
 
         config_path = args.config or args.config_alias
         diff = collect_diff(root, diff_path, patch_path, base=args.base, head=args.head, staged=args.staged, config_path=config_path)
         tests = scan_test_gaps(root, diff_path, tests_path, config_path)
         risk = score_risk(root, diff_path, tests_path, risk_path, config_path)
-        questions = generate_questions(diff_path, risk_path, tests_path, questions_path, root, config_path)
+        questions = generate_questions(
+            diff_path,
+            risk_path,
+            tests_path,
+            questions_path,
+            root,
+            config_path,
+            llm_response_path=args.llm_response,
+            prompt_out_path=prompt_path,
+            request_out_path=request_path,
+            response_out_path=response_path,
+        )
         mcq_bundle = generate_mcq_bundle(
             diff_path,
             risk_path,
@@ -78,6 +96,10 @@ def main(argv: list[str] | None = None) -> int:
                 "risk_level": risk["risk_level"],
                 "risk_score": risk["risk_score"],
                 "questions": len(questions["questions"]),
+                "question_generation": questions.get("generation", {}).get("method", "unknown"),
+                "awaiting_llm_response": questions.get("generation", {}).get("awaiting_llm_response", False),
+                "llm_prompt": questions.get("generation", {}).get("prompt_path"),
+                "llm_response": questions.get("generation", {}).get("response_path"),
                 "test_gap": tests["test_gap"],
                 "report": str(report_path),
                 "record": str(record_path),

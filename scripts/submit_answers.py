@@ -11,8 +11,8 @@ from owndifflib.mcq import evaluate_answers, write_answers_from_pairs
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Submit OwnDiff chat MCQ answers and optionally evaluate the gate.")
-    parser.add_argument("selections", nargs="+", help="Selections in qid=option format, such as q1=c q2=b.")
+    parser = argparse.ArgumentParser(description="Submit OwnDiff headless MCQ selections and optionally evaluate the gate.")
+    parser.add_argument("selections", nargs="+", help="Headless selections in qid=option format.")
     parser.add_argument("--mcq", default=".owndiff/ownership-mcq.json", help="Public MCQ JSON path.")
     parser.add_argument("--answer-key", default=".owndiff/ownership-answer-key.json", help="Local answer key JSON path.")
     parser.add_argument("--answers-out", default=".owndiff/ownership-answers.json", help="Answers JSON output path.")
@@ -44,6 +44,8 @@ def main(argv: list[str] | None = None) -> int:
                 "gate_out": str(Path(args.gate_out)),
                 "status": gate["status"],
                 "score_percent": gate["score_percent"],
+                "attempts": gate["attempts"],
+                "attempt_summary": gate["attempt_summary"],
                 "agent_may_push_merge_request": gate["agent_may_push_merge_request"],
             }
         )

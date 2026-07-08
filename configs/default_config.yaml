@@ -285,76 +285,43 @@ risk:
     message: "Only skipped documentation/text paths changed"
 
 questions:
+  enabled_risk_levels: ["medium", "high", "critical"]
   question_counts:
     low: 0
     medium: 3
     high: 5
-    critical: 7
+    critical: 6
+  starter_dimensions:
+    medium: ["intent"]
+    high: ["intent"]
+    critical: ["intent"]
+  max_domain_questions:
+    low: 0
+    medium: 1
+    high: 1
+    critical: 2
+  llm:
+    enabled: true
+    provider: "agent"
+    max_patch_chars: 12000
+    notes:
+      - "OwnDiff never performs web search or browsing for question generation."
+      - "Default provider 'agent' means the active coding agent uses its own LLM/API context to answer the generated prompt."
+      - "The active agent must generate every question, answer choice, and correct answer."
+      - "Invalid, repeated, hard, ungrounded, or hallucinated LLM output is rejected and blocks question generation."
   dimension_order:
     low: ["intent"]
     medium: ["intent", "runtime_behavior", "failure_modes", "tests", "blast_radius", "rollback"]
-    high: ["failure_modes", "rollback", "tests", "runtime_behavior", "blast_radius", "intent"]
-    critical: ["failure_modes", "rollback", "tests", "runtime_behavior", "blast_radius", "intent"]
-  generic:
-    intent:
-      question: "What user-visible or system behavior changed, and why is this change needed?"
-      expected_evidence: ["reason for the change", "behavior before and after"]
-    runtime_behavior:
-      question: "Walk through the runtime path introduced or modified by this diff."
-      expected_evidence: ["call path or execution path", "changed files"]
-    blast_radius:
-      question: "Which callers, routes, jobs, users, data, or services could be affected by this change?"
-      expected_evidence: ["affected callers/users/services", "safe and unsafe cases"]
-    failure_modes:
-      question: "What is the most likely way this change could fail in production, and what symptom would show it?"
-      expected_evidence: ["likely production symptom", "main assumption that could be wrong"]
-    tests:
-      question: "Which automated or manual test proves the risky behavior works, and what would fail if the assumption is wrong?"
-      expected_evidence: ["test name or scenario", "expected failing behavior if broken"]
-    rollback:
-      question: "How would you roll this change back safely if it causes production issues?"
-      expected_evidence: ["revert or feature flag plan", "data/config compatibility"]
-  domain:
-    auth:
-      question: "What happens when the credential, token, or session is missing, expired, invalid, or reused?"
-      expected_evidence: ["missing/expired/reused token behavior", "fail-open versus fail-closed behavior", "affected clients"]
-    authorization:
-      question: "What prevents privilege escalation or cross-tenant access after this change?"
-      expected_evidence: ["tenant boundary", "role/permission check", "negative authorization test"]
-    payments:
-      question: "How does this change avoid duplicate charges, duplicate webhook handling, or inconsistent billing state?"
-      expected_evidence: ["idempotency", "retry behavior", "refund/charge edge case"]
-    database:
-      question: "Is the schema or data change backward-compatible, and what is the rollback plan if old and new app versions overlap?"
-      expected_evidence: ["backward compatibility", "data preservation", "migration rollback"]
-    execution:
-      question: "What untrusted input can reach the command or dynamic execution path, and what constrains it?"
-      expected_evidence: ["input source", "allowlist or escaping", "least privilege"]
-    crypto:
-      question: "Which security property is this crypto/hash change preserving, and how is key or secret material protected?"
-      expected_evidence: ["confidentiality/integrity goal", "key handling", "algorithm choice"]
-    concurrency:
-      question: "What race, ordering, retry, or transaction edge case does this change introduce or prevent?"
-      expected_evidence: ["race/ordering case", "locking or transaction boundary", "retry behavior"]
-    infra:
-      question: "What deployment, CI, permission, or environment behavior changes, and how would you detect a bad rollout?"
-      expected_evidence: ["permission delta", "deployment impact", "rollback signal"]
-    dependencies:
-      question: "What new dependency, version, or lockfile risk is introduced, including transitive or supply-chain impact?"
-      expected_evidence: ["new package/version", "transitive risk", "compatibility test"]
+    high: ["intent", "runtime_behavior", "failure_modes", "tests", "blast_radius", "rollback"]
+    critical: ["intent", "runtime_behavior", "failure_modes", "tests", "blast_radius", "rollback"]
 
 mcq:
   enabled: true
+  enabled_risk_levels: ["medium", "high", "critical"]
   required_score_percent: 100
-  max_options_per_question: 4
-  default_correct_prefix: "A complete owner answer should cover"
-  default_distractors:
-    - "This can be skipped because the AI generated the change."
-    - "It is enough to say that tests pass without explaining behavior."
-    - "Only the changed line count matters; affected behavior does not need review."
-    - "The change is safe because it is small."
   gate:
     passed_status: "passed"
     failed_status: "failed"
     pending_status: "pending_answers"
+    question_generation_status: "question_generation_required"
     report_only_status: "report_only"

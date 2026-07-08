@@ -95,9 +95,16 @@ def render_markdown(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str,
 
     lines.extend(["", "## Ownership Questions", ""])
     qs = questions.get("questions", [])
+    generation = questions.get("generation", {}) if isinstance(questions.get("generation", {}), dict) else {}
     if qs:
         for question in qs:
             lines.append(f"{question.get('id')}. **{question.get('dimension')}**: {question.get('question')}")
+    elif generation.get("awaiting_llm_response"):
+        lines.append("- Agent LLM question generation is required before MCQs can be answered.")
+        if generation.get("prompt_path"):
+            lines.append(f"- Prompt: `{generation.get('prompt_path')}`")
+        if generation.get("response_path"):
+            lines.append(f"- Expected response: `{generation.get('response_path')}`")
     else:
         lines.append("- No ownership questions generated.")
 
@@ -105,6 +112,10 @@ def render_markdown(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str,
     if qs:
         lines.append(
             "Answer the ownership questions in your own words. A strong answer should explain behavior, affected callers or users, failure mode, test evidence, and rollback path where relevant."
+        )
+    elif generation.get("awaiting_llm_response"):
+        lines.append(
+            "No human answer can be collected yet. The active coding agent must use its own LLM/API context to generate validated MCQs first."
         )
     else:
         lines.append("No human answer is required for this report-only result.")
@@ -122,6 +133,9 @@ def render_markdown(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str,
 
 
 def _ownership_status(risk: dict[str, Any], questions: dict[str, Any]) -> str:
+    generation = questions.get("generation", {}) if isinstance(questions.get("generation", {}), dict) else {}
+    if generation.get("awaiting_llm_response"):
+        return "pending_agent_llm_questions"
     if risk.get("gate_mode") == "report_only" or not questions.get("questions"):
         return "report_only"
     return "pending_human_answers"

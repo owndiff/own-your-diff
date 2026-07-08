@@ -14,9 +14,17 @@ rule_body: |
 
   {{python_command}} {{skill_dir}}/scripts/run_owndiff.py --repo . --out-dir .owndiff
 
+  OwnDiff uses LLM-written ownership questions and answer choices for medium, high, and critical risk. Use your own current LLM/API context as the coding agent to answer the generated OwnDiff prompt. OwnDiff does not perform web search or browsing for question generation.
+
+  If run_owndiff.py returns "awaiting_llm_response": true or "question_generation": "agent_llm_required", read .owndiff/question-prompt.md, use your own LLM/API reasoning to produce only the requested JSON, write it to .owndiff/question-response.json, then rerun:
+
+  {{python_command}} {{skill_dir}}/scripts/run_owndiff.py --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json
+
+  If run_owndiff.py rejects the LLM response as invalid, repeated, hard, ungrounded, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Generate every question and answer choice with your active model. Do not invent facts, do not use web search, do not use deterministic fallback questions or choices, and do not push/open/update a merge request until OwnDiff validates the MCQs.
+
   If .owndiff/ownership-gate.json says "agent_may_push_merge_request": true, you may proceed after normal tests pass.
 
-  If the gate is pending_answers, failed, or "agent_may_push_merge_request" is false, do not stop after a summary. Immediately start the ownership-answer flow before pushing or opening/updating a merge request.
+  If the gate is question_generation_required, pending_answers, failed, or "agent_may_push_merge_request" is false, do not stop after a summary. Complete question generation if needed, then immediately start the ownership-answer flow before pushing or opening/updating a merge request.
 
   When reporting the result to the user, use a compact gate summary and avoid absolute local paths unless the user explicitly asks for them:
 
@@ -29,41 +37,29 @@ rule_body: |
   - Test gap: no
   - Evidence: .owndiff/ownership-report.md
 
-  If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked", set "Push/MR: blocked", and then immediately run the TUI MCQ flow or print the chat fallback questions.
+  If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked" and set "Push/MR: blocked". If question generation is required, complete the agent LLM response step first; otherwise immediately run the TUI MCQ flow.
 
-  First try the terminal picker when this agent session can run an interactive TTY. It lets the human use arrow keys, a/b/c/d shortcuts, Enter, and terminal mouse clicks when supported:
+  Use the terminal picker as the default user flow. It lets the human use arrow keys, Enter, explicit Submit gate/Edit answers/Cancel actions, and terminal mouse clicks when supported:
 
   {{python_command}} {{skill_dir}}/scripts/quiz_tui.py --mcq .owndiff/ownership-mcq.json --answer-key .owndiff/ownership-answer-key.json --answers-out .owndiff/ownership-answers.json --gate-out .owndiff/ownership-gate.json --evaluate
 
   Interpret quiz_tui.py exit codes this way:
   - 0 means answers were written and the evaluated gate passed.
-  - 2 means setup/no-TTY failure; use the chat fallback below.
+  - 2 means setup/no-TTY failure; ask the human to run the same quiz_tui.py command in a real terminal.
   - 3 means answers were written but the evaluated gate failed.
   - 130 means the human canceled.
 
-  If quiz_tui.py reports that no TTY is available, present the MCQ questions directly in the current agent chat before waiting for the user. Do not require the human to open generated files for answering.
+  If quiz_tui.py reports that no TTY is available, do not print MCQs in chat and do not ask for typed answers. Tell the human to run the quiz_tui.py command above in an interactive terminal from the target repository, then return after the selector exits.
 
-  Render the chat fallback questions with:
+  After the human returns, read .owndiff/ownership-gate.json and continue only if "agent_may_push_merge_request" is true.
 
-  {{python_command}} {{skill_dir}}/scripts/present_mcq.py --mcq .owndiff/ownership-mcq.json
-
-  Paste the full rendered MCQ text into the chat. Do not leave the questions only in command output, a collapsed transcript, or an external file. If the agent UI collapses tool output, read or rerun the command and relay the questions yourself.
-
-  Ask the human to answer in chat using a compact format such as:
-
-  q1=c q2=b q3=a
-
-  Then submit and evaluate the selections with:
-
-  {{python_command}} {{skill_dir}}/scripts/submit_answers.py --mcq .owndiff/ownership-mcq.json --answer-key .owndiff/ownership-answer-key.json --answers-out .owndiff/ownership-answers.json --gate-out .owndiff/ownership-gate.json --evaluate q1=c q2=b q3=a
-
-  Replace the q1/q2/q3 example with the human's actual selections.
+  After evaluation, report .owndiff/ownership-gate.json attempt_summary, such as "Passed after 2 attempts." or "Attempt 1 failed: 2/3 correct."
 
   Keep .owndiff/ownership-answer-key.json local. Never print or paste the answer key into chat.
 
   Do not push, open, or update the merge request unless the evaluated gate says "agent_may_push_merge_request": true.
 
-  The real interactive TUI matches the terminal quiz and review panels shown in the README GIF. The GIF also includes non-interactive install/setup/gate storyboard frames; do not imply those outer slides are part of the live curses TUI.
+  The real interactive TUI is scripts/quiz_tui.py and follows the terminal quiz/review flow shown in the README GIF. The GIF also includes non-interactive install/setup/gate storyboard frames; do not imply those outer slides are part of the live curses TUI.
 
 agents:
   claude-code:
@@ -110,7 +106,7 @@ agents:
 
   gemini-cli:
     description: Gemini CLI project context plus project skill alias.
-    docs_url: https://geminicli.com/docs/cli/skills/
+    docs_url: https://geminicli.com/docs/cli/using-agent-skills/
     actions:
       - type: append_marked
         path: GEMINI.md

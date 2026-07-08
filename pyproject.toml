@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "owndiff"
-version = "0.1.0"
+version = "0.2.0"
 description = "OwnDiff: local human-ownership checks for AI-assisted code diffs."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -70,11 +70,14 @@ include = [
   "/CONTRIBUTING.md",
   "/SECURITY.md",
   "/pyproject.toml",
+  "/.agents",
   "/.claude-plugin",
+  "/.codex-plugin",
   "/.github",
   "/agents",
   "/configs",
   "/docs",
   "/scripts",
+  "/skills",
   "/tests",
 ]

@@ -10,7 +10,7 @@ from owndifflib.mcq import render_mcq_markdown
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Render OwnDiff MCQ questions as chat-friendly Markdown.")
+    parser = argparse.ArgumentParser(description="Render OwnDiff MCQ questions for explicit headless automation.")
     parser.add_argument("--mcq", default=".owndiff/ownership-mcq.json", help="Public MCQ JSON path.")
     parser.add_argument("--out", help="Optional Markdown output path.")
     return parser

@@ -3,6 +3,7 @@
   "owner": {
     "name": "owndiff"
   },
+  "description": "Local human-ownership gates for risky AI-assisted code changes.",
   "plugins": [
     {
       "name": "owndiff",

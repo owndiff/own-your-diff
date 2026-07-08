@@ -15,10 +15,10 @@ risk:
       message: "Touches feature flag or experiment rollout behavior"
 
 questions:
-  domain:
-    feature_flags:
-      question: "Who owns this rollout, what is the kill switch, and how will exposure be monitored?"
-      expected_evidence: ["owner", "kill switch", "monitoring signal"]
+  llm:
+    enabled: true
+    provider: "agent"
 
 mcq:
+  enabled_risk_levels: ["medium", "high", "critical"]
   required_score_percent: 100

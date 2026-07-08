@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
                 "out": str(Path(args.out)),
                 "status": payload["status"],
                 "score_percent": payload["score_percent"],
+                "attempts": payload["attempts"],
+                "attempt_summary": payload["attempt_summary"],
                 "agent_may_push_merge_request": payload["agent_may_push_merge_request"],
             },
             sort_keys=True,

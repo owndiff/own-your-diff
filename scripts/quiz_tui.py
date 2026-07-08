@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 import textwrap
 from contextlib import suppress
@@ -16,6 +17,9 @@ from owndifflib.mcq import evaluate_answers, write_answers_from_mapping
 
 class UserCanceled(RuntimeError):
     pass
+
+
+REVIEW_ACTIONS = ("submit", "edit", "cancel")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         mcq = read_json(Path(args.mcq))
         questions = _questions(mcq)
         if questions and not _has_tty():
-            _print_tty_fallback(args.mcq)
+            _print_tty_error()
             return 2
 
         answers = _run_tui(mcq) if questions else {}
@@ -65,6 +69,8 @@ def main(argv: list[str] | None = None) -> int:
                 "gate_out": str(Path(args.gate_out)),
                 "status": gate["status"],
                 "score_percent": gate["score_percent"],
+                "attempts": gate["attempts"],
+                "attempt_summary": gate["attempt_summary"],
                 "agent_may_push_merge_request": gate["agent_may_push_merge_request"],
             }
         )
@@ -82,12 +88,13 @@ def _has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty() and os.environ.get("TERM", "dumb") != "dumb"
 
 
-def _print_tty_fallback(mcq_path: str) -> None:
+def _print_tty_error() -> None:
+    command = " ".join([shlex.quote(sys.executable), *[shlex.quote(arg) for arg in sys.argv]])
     print(
         "error: quiz_tui.py requires an interactive terminal (TTY).\n"
-        "Fallback for coding-agent chats:\n"
-        f"  python3 /path/to/owndiff/scripts/present_mcq.py --mcq {mcq_path}\n"
-        "Then submit the human selections with submit_answers.py --evaluate.",
+        "No answers were written. Do not ask the human to type q1=a style answers for normal review.\n"
+        "Open a real terminal in the target repository and run:\n"
+        f"  {command}",
         file=sys.stderr,
     )
 
@@ -96,12 +103,12 @@ def _run_tui(mcq: dict[str, Any]) -> dict[str, str]:
     try:
         import curses
     except ImportError as exc:
-        raise OwnDiffError("Terminal picker requires Python curses support. Use present_mcq.py instead.") from exc
+        raise OwnDiffError("Terminal picker requires Python curses support. Run quiz_tui.py in a terminal with curses support.") from exc
 
     try:
         return curses.wrapper(lambda screen: _quiz_loop(curses, screen, mcq))
     except curses.error as exc:
-        raise OwnDiffError("Terminal picker could not initialize this TTY. Use present_mcq.py instead.") from exc
+        raise OwnDiffError("Terminal picker could not initialize this TTY. Run quiz_tui.py in a real interactive terminal.") from exc
 
 
 def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
@@ -116,16 +123,23 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
     selected: dict[str, str] = {}
     index = 0
     focus = 0
+    review_focus = 0
     review = False
     zones: list[tuple[int, int]] = []
 
     while True:
         if review:
-            _draw_review(curses, screen, mcq, questions, selected)
-            key = screen.get_wch()
+            review_zones = _draw_review(curses, screen, mcq, questions, selected, review_focus)
+            key = _read_key(curses, screen)
             if _is_quit(key):
                 raise UserCanceled()
-            if _is_previous(curses, key):
+            if _is_review_previous(curses, key):
+                review_focus = (review_focus - 1) % len(REVIEW_ACTIONS)
+                continue
+            if _is_review_next(curses, key):
+                review_focus = (review_focus + 1) % len(REVIEW_ACTIONS)
+                continue
+            if isinstance(key, str) and key.lower() == "p":
                 review = False
                 index = max(0, len(questions) - 1)
                 focus = _selected_index(questions[index], selected)
@@ -134,6 +148,35 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
                 if len(selected) == len(questions):
                     return selected
                 curses.beep()
+                continue
+            if isinstance(key, str) and key.lower() == "c":
+                raise UserCanceled()
+            if _is_enter(key):
+                action = REVIEW_ACTIONS[review_focus]
+                if action == "submit":
+                    if len(selected) == len(questions):
+                        return selected
+                    curses.beep()
+                elif action == "edit":
+                    review = False
+                    index = max(0, len(questions) - 1)
+                    focus = _selected_index(questions[index], selected)
+                elif action == "cancel":
+                    raise UserCanceled()
+                continue
+            if key == curses.KEY_MOUSE:
+                action = _mouse_review_action(curses, review_zones)
+                if action is None:
+                    continue
+                review_focus = REVIEW_ACTIONS.index(action)
+                if action == "submit" and len(selected) == len(questions):
+                    return selected
+                if action == "edit":
+                    review = False
+                    index = max(0, len(questions) - 1)
+                    focus = _selected_index(questions[index], selected)
+                if action == "cancel":
+                    raise UserCanceled()
             continue
 
         question = questions[index]
@@ -142,13 +185,14 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
             raise OwnDiffError(f"Question {question.get('id', index + 1)} has no answer options")
         focus = max(0, min(focus, len(options) - 1))
         zones = _draw_question(curses, screen, mcq, questions, selected, index, focus)
-        key = screen.get_wch()
+        key = _read_key(curses, screen)
 
         if _is_quit(key):
             raise UserCanceled()
         if _is_next(curses, key) and str(question.get("id")) in selected:
             if index == len(questions) - 1:
                 review = True
+                review_focus = 0
             else:
                 index += 1
                 focus = _selected_index(questions[index], selected)
@@ -168,6 +212,7 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
             selected[str(question.get("id"))] = str(options[focus].get("id", "")).lower()
             if index == len(questions) - 1:
                 review = True
+                review_focus = 0
             else:
                 index += 1
                 focus = _selected_index(questions[index], selected)
@@ -179,6 +224,7 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
                 selected[str(question.get("id"))] = str(options[focus].get("id", "")).lower()
                 if index == len(questions) - 1:
                     review = True
+                    review_focus = 0
                 else:
                     index += 1
                     focus = _selected_index(questions[index], selected)
@@ -190,6 +236,7 @@ def _quiz_loop(curses: Any, screen: Any, mcq: dict[str, Any]) -> dict[str, str]:
                 selected[str(question.get("id"))] = str(options[focus].get("id", "")).lower()
                 if index == len(questions) - 1:
                     review = True
+                    review_focus = 0
                 else:
                     index += 1
                     focus = _selected_index(questions[index], selected)
@@ -307,11 +354,12 @@ def _draw_review(
     mcq: dict[str, Any],
     questions: list[dict[str, Any]],
     selected: dict[str, str],
-) -> None:
+    review_focus: int,
+) -> list[tuple[int, int, int, str]]:
     screen.erase()
     height, width = screen.getmaxyx()
     if _too_small(screen):
-        return
+        return []
 
     risk = str(mcq.get("risk_level") or "unknown")
     total = len(questions)
@@ -347,12 +395,52 @@ def _draw_review(
             _add(screen, content_bottom - 1, content_left + 3, "More answers are available; enlarge the terminal to see everything.", _color(curses, 3))
             break
 
+    action_row = max(content_top + 4, min(content_bottom - 2, row))
+    action_zones = _draw_review_actions(curses, screen, action_row, content_left + 3, main_right - 3, selected, questions, review_focus)
+
     if len(selected) == len(questions):
-        footer = "All questions answered. Press S to submit or P to edit."
+        footer = "Review actions: Left/Right or Up/Down move  Enter activates  S submit  P edit  C/Q cancel"
     else:
-        footer = "Some answers are missing. Press P to return to the quiz."
+        footer = "Some answers are missing. Choose Edit to return to the quiz or Cancel to exit."
     _draw_footer(curses, screen, len(selected), total, footer)
     screen.refresh()
+    return action_zones
+
+
+def _draw_review_actions(
+    curses: Any,
+    screen: Any,
+    row: int,
+    left: int,
+    right: int,
+    selected: dict[str, str],
+    questions: list[dict[str, Any]],
+    review_focus: int,
+) -> list[tuple[int, int, int, str]]:
+    complete = len(selected) == len(questions)
+    actions = [
+        ("submit", "Submit gate", complete),
+        ("edit", "Edit answers", True),
+        ("cancel", "Cancel", True),
+    ]
+    col = left
+    zones: list[tuple[int, int, int, str]] = []
+    for index, (action, label, enabled) in enumerate(actions):
+        focused = index == review_focus
+        start = col
+        text = f" {label} "
+        attr = _button_attr(curses, action, focused, enabled)
+        _add(screen, row, col, "[" if focused else " ", attr)
+        _add(screen, row, col + 1, text, attr | curses.A_BOLD)
+        _add(screen, row, col + len(text) + 1, "]" if focused else " ", attr)
+        zones.append((row, start, col + len(text) + 1, action))
+        col += len(text) + 5
+        if col >= right:
+            break
+    hint = "Enter = activate selected action"
+    if col + len(hint) + 2 < right:
+        _add(screen, row, col + 1, hint, _color(curses, 7))
+    return zones
 
 
 def _too_small(screen: Any) -> bool:
@@ -608,6 +696,48 @@ def _mouse_option(curses: Any, zones: list[tuple[int, int]]) -> int | None:
     return None
 
 
+def _mouse_review_action(curses: Any, zones: list[tuple[int, int, int, str]]) -> str | None:
+    try:
+        _, x, y, _, state = curses.getmouse()
+    except curses.error:
+        return None
+    if not state & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED | curses.BUTTON1_RELEASED):
+        return None
+    for row, start, end, action in zones:
+        if row == y and start <= x <= end:
+            return action
+    return None
+
+
+def _read_key(curses: Any, screen: Any) -> Any:
+    key = screen.get_wch()
+    if key != "\x1b":
+        return key
+
+    sequence: list[Any] = []
+    screen.nodelay(True)
+    try:
+        for _ in range(2):
+            curses.napms(10)
+            try:
+                sequence.append(screen.get_wch())
+            except curses.error:
+                break
+    finally:
+        screen.nodelay(False)
+
+    normalized = "".join(str(item) for item in sequence)
+    if normalized == "[A":
+        return curses.KEY_UP
+    if normalized == "[B":
+        return curses.KEY_DOWN
+    if normalized == "[C":
+        return curses.KEY_RIGHT
+    if normalized == "[D":
+        return curses.KEY_LEFT
+    return "\x1b"
+
+
 def _is_quit(key: Any) -> bool:
     return isinstance(key, str) and key.lower() in {"q", "\x1b"}
 
@@ -632,6 +762,14 @@ def _is_previous(curses: Any, key: Any) -> bool:
     return key == curses.KEY_LEFT or (isinstance(key, str) and key.lower() == "p")
 
 
+def _is_review_next(curses: Any, key: Any) -> bool:
+    return key in {curses.KEY_RIGHT, curses.KEY_DOWN} or (isinstance(key, str) and key.lower() in {"j", "n", "\t"})
+
+
+def _is_review_previous(curses: Any, key: Any) -> bool:
+    return key in {curses.KEY_LEFT, curses.KEY_UP} or (isinstance(key, str) and key.lower() == "k")
+
+
 def _color(curses: Any, pair: int) -> int:
     if not curses.has_colors():
         return 0
@@ -643,6 +781,16 @@ def _option_attr(curses: Any, is_focused: bool, is_selected: bool) -> int:
     if is_selected:
         attr |= curses.A_BOLD | _color(curses, 1)
     if is_focused:
+        attr |= curses.A_REVERSE
+    return attr
+
+
+def _button_attr(curses: Any, action: str, focused: bool, enabled: bool) -> int:
+    if not enabled:
+        return _color(curses, 7)
+    color = 1 if action == "submit" else 3 if action == "cancel" else 2
+    attr = _color(curses, color)
+    if focused:
         attr |= curses.A_REVERSE
     return attr
 

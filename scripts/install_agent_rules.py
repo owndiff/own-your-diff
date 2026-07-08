@@ -110,8 +110,6 @@ def verify_action(repo: Path, action: dict[str, str]) -> dict[str, Any]:
         required = [
             "run_owndiff.py",
             "quiz_tui.py",
-            "present_mcq.py",
-            "submit_answers.py",
             "agent_may_push_merge_request",
         ]
         if action_type == "append_marked":

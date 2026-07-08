@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .common import SCHEMA_VERSION, read_json, utc_now, write_json
+from .common import SCHEMA_VERSION, OwnDiffError, read_json, utc_now, write_json
 from .config import load_config
 
 
@@ -21,13 +21,13 @@ def generate_mcq_bundle(
 ) -> dict[str, Any]:
     diff = read_json(Path(diff_path))
     risk = read_json(Path(risk_path))
-    tests = read_json(Path(tests_path))
+    read_json(Path(tests_path))
     questions = read_json(Path(questions_path))
     root = Path(repo or diff.get("repo") or ".").resolve()
     config, warnings, config_sources = load_config(root, config_path)
     mcq_config = config.get("mcq", {})
 
-    mcq_questions, answer_key = _build_mcq_questions(diff, risk, tests, questions, mcq_config)
+    mcq_questions, answer_key = _build_mcq_questions(risk, questions, mcq_config)
     mcq_payload: dict[str, Any] = {
         "schema_version": f"{SCHEMA_VERSION}.mcq",
         "created_at": utc_now(),
@@ -35,7 +35,7 @@ def generate_mcq_bundle(
         "config_sources": config_sources,
         "warnings": warnings,
         "risk_level": risk.get("risk_level", "low"),
-        "instructions": "Use quiz_tui.py --evaluate when a TTY is available. If no TTY is available, present these questions in chat, collect selections such as q1=c q2=b, then run submit_answers.py --evaluate.",
+        "instructions": "Use quiz_tui.py --evaluate in an interactive terminal. If the current agent shell has no TTY, ask the human to run quiz_tui.py from the target repository. Do not ask for typed q1=a answers unless explicit headless automation was requested.",
         "questions": mcq_questions,
     }
     key_payload: dict[str, Any] = {
@@ -50,7 +50,7 @@ def generate_mcq_bundle(
         "repo": str(root),
         "answers": {question["id"]: "" for question in mcq_questions},
     }
-    gate = _initial_gate(risk, mcq_questions, mcq_config)
+    gate = _initial_gate(risk, mcq_questions, mcq_config, questions)
 
     write_json(Path(mcq_out), mcq_payload)
     write_json(Path(answer_key_out), key_payload)
@@ -104,6 +104,7 @@ def evaluate_answers(
     total = len(mcq.get("questions", []))
     score_percent = 100 if total == 0 else round((correct_count / total) * 100)
     passed = score_percent >= required_score and all(item["correct"] for item in results)
+    attempts, attempt_history = _attempts(Path(out_path), total, correct_count, score_percent, passed)
     gate_status = mcq_config.get("gate", {}).get("passed_status" if passed else "failed_status", "passed" if passed else "failed")
     payload: dict[str, Any] = {
         "schema_version": f"{SCHEMA_VERSION}.gate",
@@ -116,6 +117,10 @@ def evaluate_answers(
         "required_score_percent": required_score,
         "correct": correct_count,
         "total": total,
+        "attempts": attempts,
+        "attempts_to_pass": attempts if passed and total else None,
+        "attempt_summary": _attempt_summary(attempts, correct_count, total, passed),
+        "attempt_history": attempt_history,
         "merge_allowed": passed,
         "push_allowed": passed,
         "agent_may_push_merge_request": passed,
@@ -134,10 +139,11 @@ def render_mcq_markdown(mcq_path: str | Path) -> str:
     mcq = read_json(Path(mcq_path))
     questions = mcq.get("questions", [])
     lines = [
-        "# OwnDiff Ownership Questions",
+        "# OwnDiff Ownership Questions (Headless Fallback)",
         "",
-        "Answer in this chat using selections like `q1=c q2=b q3=a`.",
-        "The agent will save those selections to `.owndiff/ownership-answers.json` and run `submit_answers.py --evaluate`.",
+        "Use `quiz_tui.py --evaluate` for normal human review. This text view is only for explicit headless automation.",
+        "If headless mode was explicitly requested, submit selections with `submit_answers.py --evaluate`.",
+        "Normal human review should use the interactive selector instead of typed answer strings.",
         "",
     ]
     if not questions:
@@ -230,33 +236,41 @@ def write_answers_from_mapping(
 
 
 def _build_mcq_questions(
-    diff: dict[str, Any],
     risk: dict[str, Any],
-    tests: dict[str, Any],
     questions: dict[str, Any],
     mcq_config: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     source_questions = questions.get("questions", [])
-    if not source_questions:
+    risk_level = str(risk.get("risk_level", "low"))
+    enabled_levels = {str(level) for level in mcq_config.get("enabled_risk_levels", ["medium", "high", "critical"])}
+    if not mcq_config.get("enabled", True) or risk_level not in enabled_levels or not source_questions:
         return [], {}
-
-    max_options = int(mcq_config.get("max_options_per_question", 4))
-    default_distractors = [str(item) for item in mcq_config.get("default_distractors", [])]
-    correct_prefix = str(mcq_config.get("default_correct_prefix", "A complete owner answer should cover"))
 
     mcq_questions = []
     answer_key: dict[str, dict[str, Any]] = {}
     for index, question in enumerate(source_questions, start=1):
         question_id = str(question.get("id") or f"q{index}")
-        expected = [str(item) for item in question.get("expected_evidence", []) if str(item).strip()]
-        if not expected:
-            expected = _fallback_expected_evidence(diff, risk, tests)
-        correct_text = f"{correct_prefix}: {', '.join(expected)}."
-        distractors = _distractors_for_question(question, risk, tests, default_distractors)
-        options = [{"id": "a", "text": correct_text}]
-        for option_index, distractor in enumerate(distractors[: max_options - 1], start=1):
-            options.append({"id": chr(ord("a") + option_index), "text": distractor})
-        options, correct_option_id = _rotate_options(question_id, options, "a")
+        raw_options = question.get("options")
+        if not isinstance(raw_options, list) or len(raw_options) != 4:
+            raise OwnDiffError(f"Question {question_id} is missing four LLM-generated answer choices")
+        options = [
+            {"id": str(option.get("id", "")).lower(), "text": str(option.get("text", "")).strip()}
+            for option in raw_options
+            if isinstance(option, dict)
+        ]
+        option_texts = [option["text"].casefold() for option in options]
+        if (
+            len(options) != 4
+            or {option["id"] for option in options} != {"a", "b", "c", "d"}
+            or any(not text for text in option_texts)
+            or len(set(option_texts)) != 4
+        ):
+            raise OwnDiffError(f"Question {question_id} has invalid LLM-generated answer choices")
+        original_correct_id = str(question.get("correct_option_id", "")).lower()
+        if original_correct_id not in {"a", "b", "c", "d"}:
+            raise OwnDiffError(f"Question {question_id} has no valid LLM-generated correct choice")
+        options, correct_option_id = _rotate_options(question_id, options, original_correct_id)
+        correct_text = next(option["text"] for option in options if option["id"] == correct_option_id)
         mcq_questions.append(
             {
                 "id": question_id,
@@ -272,42 +286,6 @@ def _build_mcq_questions(
             "explanation": correct_text,
         }
     return mcq_questions, answer_key
-
-
-def _fallback_expected_evidence(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str, Any]) -> list[str]:
-    changed = [item.get("path", "") for item in diff.get("changed_files", [])[:3]]
-    evidence = [f"changed files: {', '.join(changed)}" if changed else "changed files"]
-    if risk.get("domains"):
-        evidence.append(f"risk domains: {', '.join(risk.get('domains', []))}")
-    evidence.append(f"test gap: {bool(tests.get('test_gap'))}")
-    return evidence
-
-
-def _distractors_for_question(
-    question: dict[str, Any],
-    risk: dict[str, Any],
-    tests: dict[str, Any],
-    defaults: list[str],
-) -> list[str]:
-    distractors = list(defaults)
-    risk_level = str(risk.get("risk_level", "low"))
-    if risk_level in {"high", "critical"}:
-        distractors.insert(0, "No rollback or failure-mode explanation is needed for this risk level.")
-    if tests.get("test_gap"):
-        distractors.insert(0, "The missing-test signal can be ignored because ownership questions are enough.")
-    if str(question.get("dimension", "")).startswith("domain:"):
-        distractors.insert(0, "The domain-specific risk does not need to be mentioned in the owner answer.")
-    return _dedupe(distractors)
-
-
-def _dedupe(items: list[str]) -> list[str]:
-    result = []
-    seen = set()
-    for item in items:
-        if item not in seen:
-            result.append(item)
-            seen.add(item)
-    return result
 
 
 def _rotate_options(question_id: str, options: list[dict[str, str]], original_correct_id: str) -> tuple[list[dict[str, str]], str]:
@@ -335,8 +313,21 @@ def _normalize_selected(raw: Any) -> set[str]:
     return {str(raw).strip().lower()} if str(raw).strip() else set()
 
 
-def _initial_gate(risk: dict[str, Any], questions: list[dict[str, Any]], mcq_config: dict[str, Any]) -> dict[str, Any]:
-    if risk.get("gate_mode") == "report_only" or not questions:
+def _initial_gate(
+    risk: dict[str, Any],
+    questions: list[dict[str, Any]],
+    mcq_config: dict[str, Any],
+    questions_payload: dict[str, Any],
+) -> dict[str, Any]:
+    generation = questions_payload.get("generation", {}) if isinstance(questions_payload.get("generation", {}), dict) else {}
+    if generation.get("awaiting_llm_response"):
+        status = mcq_config.get("gate", {}).get("question_generation_status", "question_generation_required")
+        allowed = False
+        recommendation = (
+            "Agent LLM question generation is required before ownership MCQs can be answered. "
+            "Do not push/open the merge request until the agent writes and validates the LLM response."
+        )
+    elif risk.get("gate_mode") == "report_only" or not questions:
         status = mcq_config.get("gate", {}).get("report_only_status", "report_only")
         allowed = True
         recommendation = "Report-only result. Agent may proceed if normal tests and review requirements pass."
@@ -352,9 +343,53 @@ def _initial_gate(risk: dict[str, Any], questions: list[dict[str, Any]], mcq_con
         "required_score_percent": int(mcq_config.get("required_score_percent", 100)),
         "correct": 0,
         "total": len(questions),
+        "attempts": 0,
+        "attempts_to_pass": None,
+        "attempt_summary": "No MCQ attempts have been submitted yet." if questions else "No MCQ attempts required.",
+        "attempt_history": [],
         "merge_allowed": allowed,
         "push_allowed": allowed,
         "agent_may_push_merge_request": allowed,
         "recommendation": recommendation,
         "results": [],
     }
+
+
+def _attempts(out_path: Path, total: int, correct_count: int, score_percent: int, passed: bool) -> tuple[int, list[dict[str, Any]]]:
+    if total == 0:
+        return 0, []
+
+    previous_history: list[dict[str, Any]] = []
+    attempts = 0
+    if out_path.exists():
+        try:
+            previous = read_json(out_path)
+        except OwnDiffError:
+            previous = {}
+        attempts = int(previous.get("attempts", 0) or 0)
+        raw_history = previous.get("attempt_history", [])
+        if isinstance(raw_history, list):
+            previous_history = [item for item in raw_history if isinstance(item, dict)]
+
+    attempt_number = attempts + 1
+    history = [
+        *previous_history,
+        {
+            "attempt": attempt_number,
+            "created_at": utc_now(),
+            "correct": correct_count,
+            "total": total,
+            "score_percent": score_percent,
+            "passed": passed,
+        },
+    ]
+    return attempt_number, history
+
+
+def _attempt_summary(attempts: int, correct_count: int, total: int, passed: bool) -> str:
+    if total == 0:
+        return "No MCQ attempts required."
+    suffix = "attempt" if attempts == 1 else "attempts"
+    if passed:
+        return f"Passed after {attempts} {suffix}."
+    return f"Attempt {attempts} failed: {correct_count}/{total} correct."

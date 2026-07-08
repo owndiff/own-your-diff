@@ -1,4 +1,4 @@
-# OwnDiff
+# Own Your Diff
 
 [![CI](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
@@ -8,7 +8,7 @@
 
 OwnDiff is a local Agent Skill that makes a human prove they understand risky AI-assisted code changes before an agent pushes or opens a merge request.
 
-It analyzes the current git diff, scores risky areas, detects test gaps, generates MCQ ownership questions, and writes a local gate under `.owndiff/`. The answer key, answers, reports, and gate stay on your machine.
+It analyzes the current git diff, scores risky areas, detects test gaps, and asks the active coding agent's LLM/API to generate easy, diff-grounded MCQs for medium/high/critical risk. Low-risk changes are report-only. OwnDiff never uses web search or deterministic fallback questions.
 
 ## Install
 
@@ -28,15 +28,15 @@ Send the marketplace add and plugin install as separate Claude Code prompts.
 
 ```bash
 codex plugin marketplace add owndiff/own-your-diff
-codex
+codex plugin add owndiff@owndiff
 ```
 
-Open `/plugins`, choose the OwnDiff marketplace, install OwnDiff, then start a new thread.
+Start a new Codex thread after installation.
 
 ### Gemini CLI
 
 ```bash
-gemini skills install https://github.com/owndiff/own-your-diff.git --scope workspace --consent
+gemini skills install https://github.com/owndiff/own-your-diff.git --consent
 ```
 
 ### Fallback: Project Rules
@@ -53,30 +53,23 @@ For private forks, GitHub-based installs need credentials that can clone the for
 
 ## Use
 
-Before an agent pushes or opens/updates a merge request, it should run OwnDiff on the target repo:
+Ask your coding agent:
 
-```bash
-.owndiff-skill/.venv/bin/python .owndiff-skill/scripts/run_owndiff.py --repo . --out-dir .owndiff
+```text
+Run OwnDiff before pushing this change.
 ```
 
-If the gate is blocked, answer the MCQs in the terminal picker:
+The agent analyzes the diff. For medium/high/critical risk, it uses its current LLM/API context to generate every question and answer choice from sanitized local diff facts, validates the result, and opens the terminal picker. Use arrow keys or mouse clicks, press `Enter`, review all answers, then choose **Submit gate** or **Cancel**.
 
-```bash
-.owndiff-skill/.venv/bin/python .owndiff-skill/scripts/quiz_tui.py --evaluate
-```
-
-No TTY? Have the agent show questions in chat and submit compact answers:
-
-```bash
-.owndiff-skill/.venv/bin/python .owndiff-skill/scripts/present_mcq.py
-.owndiff-skill/.venv/bin/python .owndiff-skill/scripts/submit_answers.py --evaluate q1=c q2=b q3=a
-```
+Normal users never type answers such as `q1=a`. If the agent has no interactive TTY, it should print the exact `quiz_tui.py --evaluate` command for you to run in a real terminal.
 
 The agent may push or open/update a merge request only when `.owndiff/ownership-gate.json` contains:
 
 ```json
 {"agent_may_push_merge_request": true}
 ```
+
+The same gate records `attempts`, `attempts_to_pass`, and `attempt_summary`, for example `Passed after 2 attempts.`.
 
 Add generated artifacts to the target repo's ignore file:
 
@@ -86,17 +79,17 @@ Add generated artifacts to the target repo's ignore file:
 
 ## TUI Demo
 
-End-to-end demo using a local OpenClaw test repo: install rules, analyze the diff, answer MCQs, pass the gate, then allow the agent to push or open a merge request.
+End-to-end demo using a local OpenClaw test repo: install the skill, let the active agent/model generate validated MCQs from the diff prompt, answer MCQs in the terminal picker, pass the gate, then allow the agent to push or open a merge request.
 
 ![OwnDiff TUI demo](docs/assets/owndiff-tui-demo.gif)
 
-The quiz and review frames in this GIF are rendered from the same curses layout used by `scripts/quiz_tui.py`.
+The setup and final gate frames are context slides. The quiz and review frames show the same terminal picker flow used by `scripts/quiz_tui.py`.
 
-Keys: arrow keys or `j`/`k` to move, `a`/`b`/`c`/`d` to answer, `Enter` to select, `s` to submit, `q` or `Esc` to cancel. Mouse clicks work when the terminal forwards mouse events.
+Keys: arrow keys or `j`/`k` to move through options, `Enter` to select, review all answers, then use arrow keys and `Enter` on **Submit gate**, **Edit answers**, or **Cancel**. Letter shortcuts and mouse clicks also work when the terminal supports them.
 
 Exit codes: `0` passed, `2` setup/no-TTY fallback, `3` failed answers, `130` canceled.
 
-## Installed Project Files
+## Fallback Project Files
 
 | Agent | Files |
 | --- | --- |
@@ -114,12 +107,24 @@ The project-rule installer is configuration-driven through [configs/agent_instal
 
 OwnDiff loads [configs/default_config.yaml](configs/default_config.yaml), then deep-merges `.owndiff.yml`, `.owndiff.yaml`, or `.owndiff.json` from the target repo. Use `--config path/to/config.yaml` for an explicit override.
 
-Common extensions: file extensions, test path patterns, risk domains, risk thresholds, gate modes, ownership questions, and MCQ behavior. Start from [configs/example_override.yaml](configs/example_override.yaml).
+Common extensions: file extensions, test path patterns, risk domains, risk thresholds, gate modes, question planning, and MCQ behavior. By default, MCQs are only generated for `medium`, `high`, and `critical` risk. Start from [configs/example_override.yaml](configs/example_override.yaml).
+
+Question generation always uses the active coding agent's current LLM/API context:
+
+```yaml
+questions:
+  llm:
+    enabled: true
+    provider: agent
+```
+
+The prompt tells the model not to use web search, package registries, issue trackers, or outside facts. OwnDiff validates easy difficulty, four distinct answer choices, changed-file/risk-domain grounding, JSON shape, and unknown paths. Invalid, repeated, or hallucinated output blocks question generation.
 
 ## Security
 
 - OwnDiff does not execute target repository code.
-- OwnDiff does not upload source, patches, reports, answers, or answer keys.
+- OwnDiff's Python scripts contain no network client and do not upload artifacts.
+- The active coding agent processes the sanitized question prompt under that agent provider's existing data and privacy policy.
 - `.owndiff/` artifacts are local and should stay ignored.
 - The local answer key is review evidence, not a cryptographic secret.
 - For production enforcement, add a CI or GitHub/GitLab check that reruns evaluation server-side.
