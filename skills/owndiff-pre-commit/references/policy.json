@@ -1,0 +1,112 @@
+{
+  "max_scan_bytes": 5242880,
+  "forbidden_staged_paths": [
+    ".owndiff/**",
+    ".research/**",
+    ".owndiff-test-repos/**",
+    ".venv/**",
+    ".venv*/**",
+    ".pytest_cache/**",
+    ".ruff_cache/**",
+    "**/__pycache__/**",
+    ".idea/**",
+    "*.log",
+    "*.tmp",
+    ".DS_Store"
+  ],
+  "privacy_patterns": [
+    {
+      "id": "mac_home_path",
+      "pattern": "/Users/[A-Za-z0-9._-]+/"
+    },
+    {
+      "id": "linux_home_path",
+      "pattern": "/home/[A-Za-z0-9._-]+/"
+    },
+    {
+      "id": "windows_home_path",
+      "pattern": "(?i)C:\\\\Users\\\\[A-Za-z0-9._-]+\\\\"
+    },
+    {
+      "id": "private_key",
+      "pattern": "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    },
+    {
+      "id": "aws_access_key",
+      "pattern": "AKIA[0-9A-Z]{16}"
+    },
+    {
+      "id": "github_token",
+      "pattern": "gh[pousr]_[A-Za-z0-9]{20,}"
+    },
+    {
+      "id": "api_secret",
+      "pattern": "(?i)(api[_-]?key|secret|password|token)\\s*[:=]\\s*[\"']?[A-Za-z0-9_./+=-]{20,}"
+    }
+  ],
+  "required_files": [
+    "README.md",
+    "SKILL.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    ".claude-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
+    "configs/default_config.yaml"
+  ],
+  "version_sources": [
+    {
+      "path": "pyproject.toml",
+      "pattern": "(?m)^version\\s*=\\s*\"([^\"]+)\""
+    },
+    {
+      "path": "uv.lock",
+      "pattern": "(?ms)\\[\\[package\\]\\]\\s*name\\s*=\\s*\"owndiff\"\\s*version\\s*=\\s*\"([^\"]+)\""
+    },
+    {
+      "path": "scripts/owndifflib/__init__.py",
+      "pattern": "__version__\\s*=\\s*\"([^\"]+)\""
+    },
+    {
+      "path": ".claude-plugin/plugin.json",
+      "pattern": "\"version\"\\s*:\\s*\"([^\"]+)\""
+    },
+    {
+      "path": ".codex-plugin/plugin.json",
+      "pattern": "\"version\"\\s*:\\s*\"([^\"]+)\""
+    }
+  ],
+  "checks": [
+    {
+      "name": "ruff",
+      "command": [
+        "{python}",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "timeout_seconds": 120
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "timeout_seconds": 180
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "timeout_seconds": 30
+    }
+  ]
+}

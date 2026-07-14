@@ -5,6 +5,7 @@ from typing import Any
 
 from .common import SCHEMA_VERSION, OwnDiffError, read_json, utc_now, write_json
 from .config import load_config
+from .diff_collect import has_source_changes
 
 
 def generate_mcq_bundle(
@@ -27,6 +28,17 @@ def generate_mcq_bundle(
     config, warnings, config_sources = load_config(root, config_path)
     mcq_config = config.get("mcq", {})
 
+    if not has_source_changes(diff):
+        for path in (mcq_out, answer_key_out, answers_template_out, gate_out):
+            Path(path).unlink(missing_ok=True)
+        return {
+            "generated": False,
+            "mcq": None,
+            "answer_key": None,
+            "answers_template": None,
+            "gate": _no_source_decision(),
+        }
+
     mcq_questions, answer_key = _build_mcq_questions(risk, questions, mcq_config)
     mcq_payload: dict[str, Any] = {
         "schema_version": f"{SCHEMA_VERSION}.mcq",
@@ -35,7 +47,10 @@ def generate_mcq_bundle(
         "config_sources": config_sources,
         "warnings": warnings,
         "risk_level": risk.get("risk_level", "low"),
-        "instructions": "Use quiz_tui.py --evaluate in an interactive terminal. If the current agent shell has no TTY, ask the human to run quiz_tui.py from the target repository. Do not ask for typed q1=a answers unless explicit headless automation was requested.",
+        "instructions": (
+            "Use owndiff run as the normal flow. It opens localhost browser review in the user's default browser when questions are pending. "
+            "Do not print MCQs in chat or route the human to a separate MCQ command."
+        ),
         "questions": mcq_questions,
     }
     key_payload: dict[str, Any] = {
@@ -58,10 +73,19 @@ def generate_mcq_bundle(
     write_json(Path(gate_out), gate)
 
     return {
+        "generated": True,
         "mcq": mcq_payload,
         "answer_key": key_payload,
         "answers_template": answers_template,
         "gate": gate,
+    }
+
+
+def _no_source_decision() -> dict[str, Any]:
+    return {
+        "status": "not_required_no_source_changes",
+        "agent_may_push_merge_request": True,
+        "recommendation": "No configured source-code extensions changed. No ownership MCQ or gate artifact was generated.",
     }
 
 
@@ -134,61 +158,6 @@ def evaluate_answers(
     write_json(Path(out_path), payload)
     return payload
 
-
-def render_mcq_markdown(mcq_path: str | Path) -> str:
-    mcq = read_json(Path(mcq_path))
-    questions = mcq.get("questions", [])
-    lines = [
-        "# OwnDiff Ownership Questions (Headless Fallback)",
-        "",
-        "Use `quiz_tui.py --evaluate` for normal human review. This text view is only for explicit headless automation.",
-        "If headless mode was explicitly requested, submit selections with `submit_answers.py --evaluate`.",
-        "Normal human review should use the interactive selector instead of typed answer strings.",
-        "",
-    ]
-    if not questions:
-        lines.extend(
-            [
-                "No ownership questions are required for this diff.",
-                "",
-                "The change is report-only unless `.owndiff/ownership-gate.json` says otherwise.",
-            ]
-        )
-        return "\n".join(lines).rstrip() + "\n"
-
-    risk_level = mcq.get("risk_level")
-    if risk_level:
-        lines.extend([f"Risk level: `{risk_level}`", ""])
-
-    for question in questions:
-        question_id = str(question.get("id", "q?"))
-        lines.append(f"## {question_id}. {question.get('question', '')}")
-        lines.append("")
-        for option in question.get("options", []):
-            option_id = str(option.get("id", "")).lower()
-            lines.append(f"- `{option_id}`. {option.get('text', '')}")
-        lines.append("")
-
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def write_answers_from_pairs(
-    pairs: list[str],
-    out_path: str | Path,
-    mcq_path: str | Path | None = None,
-) -> dict[str, Any]:
-    answers: dict[str, str] = {}
-    for pair in pairs:
-        if "=" not in pair:
-            raise ValueError(f"Answer must use qid=option format: {pair}")
-        question_id, option_id = pair.split("=", 1)
-        question_id = question_id.strip()
-        option_id = option_id.strip().lower()
-        if not question_id or not option_id:
-            raise ValueError(f"Answer must use qid=option format: {pair}")
-        answers[question_id] = option_id
-
-    return write_answers_from_mapping(answers, out_path, mcq_path)
 
 
 def write_answers_from_mapping(
@@ -269,13 +238,17 @@ def _build_mcq_questions(
         original_correct_id = str(question.get("correct_option_id", "")).lower()
         if original_correct_id not in {"a", "b", "c", "d"}:
             raise OwnDiffError(f"Question {question_id} has no valid LLM-generated correct choice")
-        options, correct_option_id = _rotate_options(question_id, options, original_correct_id)
+        correct_option_id = original_correct_id
         correct_text = next(option["text"] for option in options if option["id"] == correct_option_id)
+        hint = str(question.get("hint", "")).strip()
+        if not hint:
+            raise OwnDiffError(f"Question {question_id} is missing an LLM-generated hint")
         mcq_questions.append(
             {
                 "id": question_id,
                 "dimension": question.get("dimension"),
                 "question": question.get("question"),
+                "hint": hint,
                 "required": bool(question.get("required", True)),
                 "selection": "single",
                 "options": options,
@@ -286,21 +259,6 @@ def _build_mcq_questions(
             "explanation": correct_text,
         }
     return mcq_questions, answer_key
-
-
-def _rotate_options(question_id: str, options: list[dict[str, str]], original_correct_id: str) -> tuple[list[dict[str, str]], str]:
-    if not options:
-        return options, original_correct_id
-    rotation = sum(ord(char) for char in question_id) % len(options)
-    rotated = options[rotation:] + options[:rotation]
-    remapped = []
-    correct_option_id = "a"
-    for index, option in enumerate(rotated):
-        new_id = chr(ord("a") + index)
-        if option["id"] == original_correct_id:
-            correct_option_id = new_id
-        remapped.append({"id": new_id, "text": option["text"]})
-    return remapped, correct_option_id
 
 
 def _normalize_selected(raw: Any) -> set[str]:

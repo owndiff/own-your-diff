@@ -46,9 +46,11 @@ def main(argv: list[str] | None = None) -> int:
     print(
         json.dumps(
             {
-                "mcq_out": str(Path(args.mcq_out)),
+                "artifacts_generated": bool(payload["generated"]),
+                "mcq_out": str(Path(args.mcq_out)) if payload["generated"] else None,
+                "gate_out": str(Path(args.gate_out)) if payload["generated"] else None,
                 "gate_status": payload["gate"]["status"],
-                "questions": len(payload["mcq"]["questions"]),
+                "questions": len(payload["mcq"]["questions"]) if payload["mcq"] else 0,
             },
             sort_keys=True,
         )

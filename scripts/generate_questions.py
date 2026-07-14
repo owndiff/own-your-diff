@@ -25,6 +25,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--prompt-out", default=".owndiff/question-prompt.md", help="Agent LLM prompt output path.")
     parser.add_argument("--request-out", default=".owndiff/question-request.json", help="Agent LLM request metadata output path.")
     parser.add_argument("--response-out", default=".owndiff/question-response.json", help="Expected agent LLM response path.")
+    parser.add_argument(
+        "--question-count",
+        type=int,
+        help="Override the configured ownership question count for this generation run. Default comes from config.",
+    )
     return parser
 
 
@@ -42,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
             prompt_out_path=args.prompt_out,
             request_out_path=args.request_out,
             response_out_path=args.response_out,
+            question_count_override=args.question_count,
         )
     except OwnDiffError as exc:
         print(f"error: {exc}", file=sys.stderr)

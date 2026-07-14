@@ -46,6 +46,12 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.8",
 ]
+build = [
+  "pyinstaller>=6.0",
+]
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -69,6 +75,7 @@ include = [
   "/README.md",
   "/CONTRIBUTING.md",
   "/SECURITY.md",
+  "/install.sh",
   "/pyproject.toml",
   "/.agents",
   "/.claude-plugin",

@@ -30,10 +30,10 @@ body:
       required: true
 
   - type: input
-    id: python-version
+    id: install-method
     attributes:
-      label: Python version
-      placeholder: "3.11.9"
+      label: Install method
+      placeholder: "release binary, source runtime, Claude plugin, Codex plugin, project rules"
     validations:
       required: true
 
@@ -41,7 +41,15 @@ body:
     id: owndiff-version
     attributes:
       label: OwnDiff version or commit
-      placeholder: "0.1.0 or commit SHA"
+      placeholder: "owndiff 0.2.0 or commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      placeholder: "macOS x86_64 binary, Linux x86_64 binary, Python 3.11.9 source runtime"
     validations:
       required: false
 

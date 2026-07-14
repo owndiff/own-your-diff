@@ -15,6 +15,39 @@ def detect_language(path: str, config: dict[str, Any] | None = None) -> str:
     return str(extensions.get(suffix, "unknown"))
 
 
+def is_source_file(path: str, config: dict[str, Any] | None = None) -> bool:
+    config = config or _default_config()
+    source_extensions = config.get("diff", {}).get("source_extensions", {})
+    suffix = Path(path).suffix.lower()
+    if isinstance(source_extensions, dict):
+        return bool(source_extensions.get(suffix, False))
+    if isinstance(source_extensions, list):
+        return suffix in {str(item).lower() for item in source_extensions}
+    return False
+
+
+def changed_source_files(diff: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in diff.get("changed_files", [])
+        if isinstance(item, dict) and _is_source_change(item)
+    ]
+
+
+def has_source_changes(diff: dict[str, Any]) -> bool:
+    return bool(changed_source_files(diff))
+
+
+def _is_source_change(item: dict[str, Any]) -> bool:
+    if "is_source" in item:
+        return bool(item.get("is_source"))
+    path = str(item.get("path", "")).strip()
+    if path:
+        return is_source_file(path)
+    language = str(item.get("language", "unknown")).lower()
+    return language not in {"unknown", "markdown", "text", "yaml", "json", "toml"}
+
+
 def is_test_file(path: str, config: dict[str, Any] | None = None) -> bool:
     config = config or _default_config()
     test_config = config.get("diff", {}).get("test_file", {})
@@ -171,6 +204,7 @@ def collect_diff(
                 "additions": stat_info["additions"],
                 "deletions": stat_info["deletions"],
                 "language": detect_language(path, config),
+                "is_source": is_source_file(path, config),
                 "is_test": is_test_file(path, config),
             }
         )
@@ -186,6 +220,7 @@ def collect_diff(
 
     total_additions = sum(item["additions"] for item in changed_files)
     total_deletions = sum(item["deletions"] for item in changed_files)
+    source_files = [item for item in changed_files if item["is_source"]]
     payload: dict[str, Any] = {
         "schema_version": f"{SCHEMA_VERSION}.diff",
         "created_at": utc_now(),
@@ -204,6 +239,8 @@ def collect_diff(
             "insertions": total_additions,
             "deletions": total_deletions,
             "lines_changed": total_additions + total_deletions,
+            "source_files_changed": len(source_files),
+            "source_code_changed": bool(source_files),
         },
     }
 

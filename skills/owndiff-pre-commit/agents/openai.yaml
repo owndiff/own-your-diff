@@ -1,0 +1,4 @@
+interface:
+  display_name: "OwnDiff Pre-Commit"
+  short_description: "Verify release changes before committing"
+  default_prompt: "Use $owndiff-pre-commit to audit the current changes, verify documentation and privacy, run checks, and stop before committing."

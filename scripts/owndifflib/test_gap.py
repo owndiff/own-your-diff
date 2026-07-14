@@ -5,7 +5,7 @@ from typing import Any
 
 from .common import SCHEMA_VERSION, read_json, utc_now, write_json
 from .config import load_config
-from .diff_collect import is_test_file
+from .diff_collect import changed_source_files, is_test_file
 
 
 def candidate_tests(path: str, config: dict[str, Any]) -> list[str]:
@@ -58,12 +58,20 @@ def scan_test_gaps(
     config, warnings, config_sources = load_config(root, config_path)
     diff = read_json(Path(diff_path))
     changed_files = diff.get("changed_files", [])
+    source_paths = {item.get("path") for item in changed_source_files(diff)}
     code_languages = set(config.get("test_gap", {}).get("code_languages", []))
-    changed_tests = [item["path"] for item in changed_files if item.get("is_test") or is_test_file(item.get("path", ""), config)]
+    changed_tests = [
+        item["path"]
+        for item in changed_files
+        if item.get("path") in source_paths
+        and (item.get("is_test") or is_test_file(item.get("path", ""), config))
+    ]
     changed_code = [
         item["path"]
         for item in changed_files
-        if item.get("language") in code_languages and not (item.get("is_test") or is_test_file(item.get("path", ""), config))
+        if item.get("path") in source_paths
+        and item.get("language") in code_languages
+        and not (item.get("is_test") or is_test_file(item.get("path", ""), config))
     ]
 
     missing = []

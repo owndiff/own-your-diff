@@ -5,10 +5,15 @@ diff:
     - ".owndiff/"
   language_extensions:
     ".py": "python"
+    ".pyi": "python"
     ".js": "javascript"
     ".jsx": "javascript"
+    ".mjs": "javascript"
+    ".cjs": "javascript"
     ".ts": "typescript"
     ".tsx": "typescript"
+    ".mts": "typescript"
+    ".cts": "typescript"
     ".go": "go"
     ".java": "java"
     ".rb": "ruby"
@@ -16,7 +21,29 @@ diff:
     ".php": "php"
     ".cs": "csharp"
     ".kt": "kotlin"
+    ".kts": "kotlin"
     ".swift": "swift"
+    ".c": "c"
+    ".h": "c"
+    ".cc": "cpp"
+    ".cpp": "cpp"
+    ".cxx": "cpp"
+    ".hpp": "cpp"
+    ".scala": "scala"
+    ".sc": "scala"
+    ".dart": "dart"
+    ".vue": "vue"
+    ".svelte": "svelte"
+    ".ex": "elixir"
+    ".exs": "elixir"
+    ".lua": "lua"
+    ".r": "r"
+    ".sol": "solidity"
+    ".html": "html"
+    ".css": "css"
+    ".scss": "scss"
+    ".sass": "sass"
+    ".less": "less"
     ".sql": "sql"
     ".yaml": "yaml"
     ".yml": "yaml"
@@ -24,6 +51,56 @@ diff:
     ".toml": "toml"
     ".tf": "terraform"
     ".sh": "shell"
+    ".bash": "shell"
+    ".zsh": "shell"
+    ".fish": "shell"
+  source_extensions:
+    ".py": true
+    ".pyi": true
+    ".js": true
+    ".jsx": true
+    ".mjs": true
+    ".cjs": true
+    ".ts": true
+    ".tsx": true
+    ".mts": true
+    ".cts": true
+    ".go": true
+    ".java": true
+    ".rb": true
+    ".rs": true
+    ".php": true
+    ".cs": true
+    ".kt": true
+    ".kts": true
+    ".swift": true
+    ".c": true
+    ".h": true
+    ".cc": true
+    ".cpp": true
+    ".cxx": true
+    ".hpp": true
+    ".scala": true
+    ".sc": true
+    ".dart": true
+    ".vue": true
+    ".svelte": true
+    ".ex": true
+    ".exs": true
+    ".lua": true
+    ".r": true
+    ".sol": true
+    ".html": true
+    ".css": true
+    ".scss": true
+    ".sass": true
+    ".less": true
+    ".sql": true
+    ".tf": true
+    ".sh": true
+    ".bash": true
+    ".zsh": true
+    ".fish": true
   test_file:
     path_markers:
       - "/test/"
@@ -288,18 +365,18 @@ questions:
   enabled_risk_levels: ["medium", "high", "critical"]
   question_counts:
     low: 0
-    medium: 3
+    medium: 5
     high: 5
-    critical: 6
+    critical: 5
   starter_dimensions:
     medium: ["intent"]
     high: ["intent"]
     critical: ["intent"]
   max_domain_questions:
     low: 0
-    medium: 1
-    high: 1
-    critical: 2
+    medium: 0
+    high: 0
+    critical: 0
   llm:
     enabled: true
     provider: "agent"

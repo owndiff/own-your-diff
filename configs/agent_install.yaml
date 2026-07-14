@@ -12,15 +12,17 @@ default_agents:
 rule_body: |
   Before pushing, opening, or updating a merge request, run:
 
-  {{python_command}} {{skill_dir}}/scripts/run_owndiff.py --repo . --out-dir .owndiff
+  {{owndiff_command}} run --repo . --out-dir .owndiff
 
   OwnDiff uses LLM-written ownership questions and answer choices for medium, high, and critical risk. Use your own current LLM/API context as the coding agent to answer the generated OwnDiff prompt. OwnDiff does not perform web search or browsing for question generation.
 
-  If run_owndiff.py returns "awaiting_llm_response": true or "question_generation": "agent_llm_required", read .owndiff/question-prompt.md, use your own LLM/API reasoning to produce only the requested JSON, write it to .owndiff/question-response.json, then rerun:
+  Treat every OwnDiff run as a fresh review for the current diff. Do not reuse previous .owndiff/ownership-answers.json, previous MCQs, or a previous passed gate. OwnDiff clears old local review artifacts before writing the current run's prompt, questions, answers template, and gate.
 
-  {{python_command}} {{skill_dir}}/scripts/run_owndiff.py --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json
+  If the OwnDiff command returns "awaiting_llm_response": true or "question_generation": "agent_llm_required", read .owndiff/question-prompt.md, use your own LLM/API reasoning to produce only the requested JSON, write it to .owndiff/question-response.json, then rerun:
 
-  If run_owndiff.py rejects the LLM response as invalid, repeated, hard, ungrounded, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Generate every question and answer choice with your active model. Do not invent facts, do not use web search, do not use deterministic fallback questions or choices, and do not push/open/update a merge request until OwnDiff validates the MCQs.
+  {{owndiff_command}} run --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json
+
+  If the OwnDiff run rejects the LLM response as invalid, repeated, hard, ungrounded, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Generate every question and answer choice with your active model. Do not invent facts, do not use web search, do not use deterministic fallback questions or choices, and do not push/open/update a merge request until OwnDiff validates the MCQs.
 
   If .owndiff/ownership-gate.json says "agent_may_push_merge_request": true, you may proceed after normal tests pass.
 
@@ -37,21 +39,19 @@ rule_body: |
   - Test gap: no
   - Evidence: .owndiff/ownership-report.md
 
-  If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked" and set "Push/MR: blocked". If question generation is required, complete the agent LLM response step first; otherwise immediately run the TUI MCQ flow.
+  If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked" and set "Push/MR: blocked". If question generation is required, complete the agent LLM response step first; otherwise let the same OwnDiff run open browser review immediately.
 
-  Use the terminal picker as the default user flow. It lets the human use arrow keys, Enter, explicit Submit gate/Edit answers/Cancel actions, and terminal mouse clicks when supported:
+  Use the OwnDiff command above as the only MCQ review flow. When questions are pending, it starts a localhost review server and opens the human's default browser so they can use hints, click answers, retry before submitting, and submit the same local gate. The browser page keeps the answer key server-side and binds only to localhost.
 
-  {{python_command}} {{skill_dir}}/scripts/quiz_tui.py --mcq .owndiff/ownership-mcq.json --answer-key .owndiff/ownership-answer-key.json --answers-out .owndiff/ownership-answers.json --gate-out .owndiff/ownership-gate.json --evaluate
-
-  Interpret quiz_tui.py exit codes this way:
-  - 0 means answers were written and the evaluated gate passed.
-  - 2 means setup/no-TTY failure; ask the human to run the same quiz_tui.py command in a real terminal.
+  Interpret OwnDiff browser-review exit codes this way:
+  - 0 means report-only or a passed evaluated gate.
+  - 2 means setup/browser-review-timeout failure.
   - 3 means answers were written but the evaluated gate failed.
   - 130 means the human canceled.
 
-  If quiz_tui.py reports that no TTY is available, do not print MCQs in chat and do not ask for typed answers. Tell the human to run the quiz_tui.py command above in an interactive terminal from the target repository, then return after the selector exits.
+  Do not print MCQs in chat, do not provide a separate MCQ command, and do not claim the review is waiting in another terminal.
 
-  After the human returns, read .owndiff/ownership-gate.json and continue only if "agent_may_push_merge_request" is true.
+  After the browser submission, the browser review attempts to close itself, and the OwnDiff command exits back to the same terminal session. On macOS, OwnDiff makes a best-effort attempt to refocus known terminal apps. Then read .owndiff/ownership-gate.json and continue only if "agent_may_push_merge_request" is true.
 
   After evaluation, report .owndiff/ownership-gate.json attempt_summary, such as "Passed after 2 attempts." or "Attempt 1 failed: 2/3 correct."
 
@@ -59,7 +59,7 @@ rule_body: |
 
   Do not push, open, or update the merge request unless the evaluated gate says "agent_may_push_merge_request": true.
 
-  The real interactive TUI is scripts/quiz_tui.py and follows the terminal quiz/review flow shown in the README GIF. The GIF also includes non-interactive install/setup/gate storyboard frames; do not imply those outer slides are part of the live curses TUI.
+  Browser review is the default OwnDiff experience. The README demo shows the browser review flow.
 
 agents:
   claude-code:

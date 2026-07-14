@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from .common import OwnDiffError
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "default_config.yaml"
 REPO_CONFIG_NAMES = (".owndiff.yml", ".owndiff.yaml", ".owndiff.json")
+
+
+def bundled_root() -> Path:
+    return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+
+
+def default_config_path() -> Path:
+    return bundled_root() / "configs" / "default_config.yaml"
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
@@ -26,8 +34,9 @@ def load_config(repo: str | Path, explicit_config: str | Path | None = None) -> 
     warnings: list[str] = []
     sources: list[str] = []
 
-    config = _read_mapping(DEFAULT_CONFIG_PATH)
-    sources.append(str(DEFAULT_CONFIG_PATH))
+    default_path = default_config_path()
+    config = _read_mapping(default_path)
+    sources.append(str(default_path))
 
     for candidate in _override_candidates(root, explicit_config):
         if not candidate.exists():

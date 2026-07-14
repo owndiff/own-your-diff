@@ -6,6 +6,7 @@ from typing import Any
 
 from .common import SCHEMA_VERSION, OwnDiffError, ensure_parent, read_json, utc_now, write_json
 from .config import load_config
+from .diff_collect import changed_source_files, has_source_changes
 from .llm_questions import build_agent_question_request, validate_llm_questions
 
 
@@ -20,6 +21,7 @@ def generate_questions(
     prompt_out_path: str | Path | None = None,
     request_out_path: str | Path | None = None,
     response_out_path: str | Path | None = None,
+    question_count_override: int | None = None,
 ) -> dict[str, Any]:
     diff = read_json(Path(diff_path))
     risk = read_json(Path(risk_path))
@@ -29,7 +31,16 @@ def generate_questions(
     question_config = config.get("questions", {})
     risk_level = str(risk.get("risk_level", "low"))
     enabled_levels = {str(level) for level in question_config.get("enabled_risk_levels", ["medium", "high", "critical"])}
-    count = int(risk.get("requirements", {}).get("question_count", 1)) if risk_level in enabled_levels else 0
+    source_code_changed = has_source_changes(diff)
+    count = (
+        int(risk.get("requirements", {}).get("question_count", 1))
+        if source_code_changed and risk_level in enabled_levels
+        else 0
+    )
+    if question_count_override is not None and source_code_changed and risk_level in enabled_levels:
+        if question_count_override < 1:
+            raise OwnDiffError("--question-count must be >= 1 when ownership questions are required")
+        count = question_count_override
     domains = _path_grounded_domains(risk.get("domains", []), diff, config)
     context = _question_context(diff, risk, tests, domains)
     question_plan: list[dict[str, Any]] = []
@@ -42,18 +53,18 @@ def generate_questions(
             break
         _append_plan_item(question_plan, used_dimensions, dimension, context, risk, "Core ownership dimension")
 
-    domain_limit = int(question_config.get("max_domain_questions", {}).get(risk_level, 1))
+    for dimension in dimension_order:
+        if len(question_plan) >= count:
+            break
+        _append_plan_item(question_plan, used_dimensions, dimension, context, risk, "Core ownership dimension")
+
+    domain_limit = int(question_config.get("max_domain_questions", {}).get(risk_level, 0))
     for domain in domains[: max(0, domain_limit)]:
         if len(question_plan) >= count:
             break
         dimension = f"domain:{domain}"
         domain_context = {**context, **_domain_context(domain)}
         _append_plan_item(question_plan, used_dimensions, dimension, domain_context, risk, f"Risk domain detected: {domain}")
-
-    for dimension in dimension_order:
-        if len(question_plan) >= count:
-            break
-        _append_plan_item(question_plan, used_dimensions, dimension, context, risk, "Core ownership dimension")
 
     if question_plan:
         provider = _llm_provider(question_config)
@@ -78,10 +89,11 @@ def generate_questions(
     else:
         questions = []
         generation = {
-            "method": "not_required",
+            "method": "not_required" if source_code_changed else "not_required_no_source_changes",
             "llm_required": False,
             "awaiting_llm_response": False,
             "planned_dimensions": [],
+            "reason": None if source_code_changed else "No configured source-code extensions changed.",
         }
 
     payload: dict[str, Any] = {
@@ -129,7 +141,11 @@ def _agent_questions(
         try:
             questions = validate_llm_questions(response, diff, risk, tests, question_plan)
         except ValueError as exc:
-            raise OwnDiffError(f"Agent LLM question response rejected: {exc}") from exc
+            raise OwnDiffError(
+                "Agent LLM question response rejected: "
+                f"{exc}. Run owndiff run without --llm-response to write a fresh question prompt, "
+                "generate a new response from that prompt, then rerun with --llm-response."
+            ) from exc
         return questions, {
             "method": "agent_llm",
             "llm_required": True,
@@ -158,8 +174,8 @@ def _agent_questions(
             "question_count": len(question_plan),
             "instructions": (
                 "Use the current coding agent's own LLM/API context to answer question-prompt.md. "
-                "Write only the requested JSON response to question-response.json, then rerun run_owndiff.py "
-                "with --llm-response question-response.json."
+                "Write only the requested JSON response to question-response.json, then rerun owndiff run "
+                "with --llm-response question-response.json. Browser review opens by default when questions are pending."
             ),
         },
     )
@@ -206,25 +222,40 @@ def _question_context(
     tests: dict[str, Any],
     domains: list[str],
 ) -> dict[str, str]:
-    changed_files = [item for item in diff.get("changed_files", []) if isinstance(item, dict)]
-    focus_files = _focus_files(changed_files)
-    summary = diff.get("summary", {})
+    source_files = changed_source_files(diff)
+    focus_files = _focus_files(source_files)
+    source_additions = sum(int(item.get("additions", 0)) for item in source_files)
+    source_deletions = sum(int(item.get("deletions", 0)) for item in source_files)
     changed_tests = [str(path) for path in tests.get("changed_test_files", [])[:3]]
     missing_tests = tests.get("missing_test_candidates", [])
-    reasons = [str(item.get("message", "")) for item in risk.get("reasons", []) if isinstance(item, dict)]
+    reasons = _source_risk_messages(risk, domains)
 
     return {
         "focus": _format_list(focus_files) if focus_files else "the changed code",
         "primary_file": focus_files[0] if focus_files else "the changed code",
         "change_kind": _change_kind(focus_files, domains),
         "domain_label": _format_domains(domains) if domains else "this code path",
+        "risk_domains": ", ".join(domains),
         "test_signal": _test_signal(bool(tests.get("test_gap")), changed_tests, missing_tests),
         "risk_summary": reasons[0] if reasons else "OwnDiff flagged ownership risk for this diff",
         "change_scale": (
-            f"{int(summary.get('files_changed', 0))} file(s), "
-            f"+{int(summary.get('insertions', 0))}/-{int(summary.get('deletions', 0))}"
+            f"{len(source_files)} source file(s), "
+            f"+{source_additions}/-{source_deletions}"
         ),
     }
+
+
+def _source_risk_messages(risk: dict[str, Any], domains: list[str]) -> list[str]:
+    ranked = []
+    for item in risk.get("reasons", []):
+        if not isinstance(item, dict):
+            continue
+        reason_id = str(item.get("id", ""))
+        if reason_id.startswith("domain.") and reason_id[len("domain.") :] not in domains:
+            continue
+        priority = 0 if reason_id.startswith("path.") else 1 if reason_id.startswith("tests.") else 2
+        ranked.append((priority, str(item.get("message", ""))))
+    return [message for _priority, message in sorted(ranked, key=lambda item: item[0]) if message]
 
 
 def _path_grounded_domains(
@@ -235,8 +266,8 @@ def _path_grounded_domains(
     domains = [str(domain) for domain in raw_domains if str(domain).strip()] if isinstance(raw_domains, list) else []
     changed_paths = [
         str(item.get("path", "")).lower()
-        for item in diff.get("changed_files", [])
-        if isinstance(item, dict) and str(item.get("path", "")).strip()
+        for item in changed_source_files(diff)
+        if str(item.get("path", "")).strip()
     ]
     rules = config.get("risk", {}).get("domain_rules", {})
     if not isinstance(rules, dict):
@@ -268,11 +299,12 @@ def _path_matches_term(path: str, term: str) -> bool:
 
 
 def _focus_files(changed_files: list[dict[str, Any]]) -> list[str]:
+    source_files = changed_source_files({"changed_files": changed_files})
     candidates = [
         item
-        for item in changed_files
+        for item in source_files
         if str(item.get("path", "")).strip() and not bool(item.get("is_test"))
-    ] or [item for item in changed_files if str(item.get("path", "")).strip()]
+    ] or [item for item in source_files if str(item.get("path", "")).strip()]
     sorted_files = sorted(
         candidates,
         key=lambda item: (-(int(item.get("additions", 0)) + int(item.get("deletions", 0))), str(item.get("path", ""))),
@@ -337,5 +369,5 @@ def _format_list(items: list[str]) -> str:
 
 
 def _public_context(context: dict[str, str]) -> dict[str, str]:
-    keys = ("focus", "change_kind", "domain_label", "test_signal", "risk_summary", "change_scale")
+    keys = ("focus", "change_kind", "domain_label", "risk_domains", "test_signal", "risk_summary", "change_scale")
     return {key: context[key] for key in keys if key in context}

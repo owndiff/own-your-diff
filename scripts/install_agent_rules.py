@@ -11,14 +11,24 @@ from typing import Any
 
 import yaml
 
+from owndifflib.config import bundled_root
+
 BEGIN_MARKER = "<!-- BEGIN OWNDIFF AGENT RULE -->"
 END_MARKER = "<!-- END OWNDIFF AGENT RULE -->"
 SKILL_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = SKILL_DIR / "configs" / "agent_install.yaml"
+DEFAULT_CONFIG = bundled_root() / "configs" / "agent_install.yaml"
 
 
 class InstallError(RuntimeError):
     pass
+
+
+def is_bundled() -> bool:
+    return bool(getattr(sys, "_MEIPASS", None))
+
+
+def default_owndiff_command(python_command: str) -> str:
+    return "owndiff"
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -95,6 +105,10 @@ def verify_action(repo: Path, action: dict[str, str]) -> dict[str, Any]:
     relative_path = action["path"]
     path = repo / relative_path
     result: dict[str, Any] = {"type": action_type, "path": relative_path, "ok": False}
+    if action.get("skipped"):
+        result["ok"] = True
+        result["skipped"] = action["skipped"]
+        return result
 
     if action_type == "symlink":
         target = Path(action["target"])
@@ -108,8 +122,7 @@ def verify_action(repo: Path, action: dict[str, str]) -> dict[str, Any]:
             return result
         text = path.read_text(encoding="utf-8")
         required = [
-            "run_owndiff.py",
-            "quiz_tui.py",
+            "run --repo",
             "agent_may_push_merge_request",
         ]
         if action_type == "append_marked":
@@ -121,14 +134,13 @@ def verify_action(repo: Path, action: dict[str, str]) -> dict[str, Any]:
     return result
 
 
-def run_command_check(python_command: str) -> list[dict[str, Any]]:
+def run_command_check(owndiff_command: str) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
+    base_command = shlex.split(owndiff_command)
     commands = [
-        [*shlex.split(python_command), str(SKILL_DIR / "scripts" / "run_owndiff.py"), "--help"],
-        [*shlex.split(python_command), str(SKILL_DIR / "scripts" / "quiz_tui.py"), "--help"],
-        [*shlex.split(python_command), str(SKILL_DIR / "scripts" / "present_mcq.py"), "--help"],
-        [*shlex.split(python_command), str(SKILL_DIR / "scripts" / "submit_answers.py"), "--help"],
-        [*shlex.split(python_command), str(SKILL_DIR / "scripts" / "evaluate_answers.py"), "--help"],
+        [*base_command, "--help"],
+        [*base_command, "run", "--help"],
+        [*base_command, "install-agent-rules", "--help"],
     ]
     for command in commands:
         proc = subprocess.run(command, cwd=SKILL_DIR, text=True, capture_output=True, check=False)
@@ -164,8 +176,10 @@ def install_agents(
     config: dict[str, Any],
     selected: list[str],
     python_command: str,
+    owndiff_command: str,
     force: bool,
     dry_run: bool,
+    skip_skill_links: bool = False,
 ) -> dict[str, Any]:
     rule_body_template = config.get("rule_body")
     if not isinstance(rule_body_template, str):
@@ -175,6 +189,7 @@ def install_agents(
         "skill_dir": str(SKILL_DIR),
         "repo": str(repo),
         "python_command": python_command,
+        "owndiff_command": owndiff_command,
     }
     context["rule_body"] = render(rule_body_template, context)
 
@@ -204,6 +219,11 @@ def install_agents(
                 raise InstallError(f"Invalid action for {agent_name}")
             action = render_action(raw_action, context)
             action_type = action.get("type")
+            if action_type == "symlink" and skip_skill_links:
+                action.pop("target", None)
+                action["skipped"] = "standalone executable mode"
+                agent_summary["actions"].append(action)
+                continue
             if action_type == "write_file":
                 write_file(repo / action["path"], action["content"], dry_run)
             elif action_type == "append_marked":
@@ -219,7 +239,7 @@ def install_agents(
     return summary
 
 
-def verify_install(repo: Path, summary: dict[str, Any], python_command: str, skip_command_check: bool) -> dict[str, Any]:
+def verify_install(repo: Path, summary: dict[str, Any], owndiff_command: str, skip_command_check: bool) -> dict[str, Any]:
     verification = {"agents": [], "command_checks": []}
     for agent in summary["agents"]:
         agent_result = {"name": agent["name"], "actions": []}
@@ -228,7 +248,7 @@ def verify_install(repo: Path, summary: dict[str, Any], python_command: str, ski
         verification["agents"].append(agent_result)
 
     if not skip_command_check:
-        verification["command_checks"] = run_command_check(python_command)
+        verification["command_checks"] = run_command_check(owndiff_command)
 
     return verification
 
@@ -245,7 +265,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", default=".", help="Target repository. Default: current directory.")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG), help="Agent install config YAML.")
     parser.add_argument("--agents", default="all", help="Comma-separated agent names or 'all'.")
-    parser.add_argument("--python-command", default="python3", help="Python command to put in generated rules.")
+    parser.add_argument(
+        "--python-command",
+        default=sys.executable,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--owndiff-command",
+        help="OwnDiff command to put in generated rules. Defaults to 'owndiff' in the standalone executable.",
+    )
+    parser.add_argument(
+        "--skip-skill-links",
+        action="store_true",
+        help="Skip project skill symlinks; useful when installing rules from the standalone executable.",
+    )
     parser.add_argument("--force", action="store_true", help="Replace existing non-matching symlinks or files when safe.")
     parser.add_argument("--dry-run", action="store_true", help="Preview actions without writing files.")
     parser.add_argument("--verify", action="store_true", help="Verify installed files and OwnDiff command entry points.")
@@ -271,13 +304,33 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         selected = select_agents(config, args.agents)
+        owndiff_command = args.owndiff_command or default_owndiff_command(args.python_command)
+        skip_skill_links = args.skip_skill_links or is_bundled()
         if args.verify_only:
-            summary = install_agents(repo, config, selected, args.python_command, args.force, dry_run=True)
+            summary = install_agents(
+                repo,
+                config,
+                selected,
+                args.python_command,
+                owndiff_command,
+                args.force,
+                dry_run=True,
+                skip_skill_links=skip_skill_links,
+            )
         else:
-            summary = install_agents(repo, config, selected, args.python_command, args.force, args.dry_run)
+            summary = install_agents(
+                repo,
+                config,
+                selected,
+                args.python_command,
+                owndiff_command,
+                args.force,
+                args.dry_run,
+                skip_skill_links=skip_skill_links,
+            )
 
         if args.verify or args.verify_only:
-            summary["verification"] = verify_install(repo, summary, args.python_command, args.skip_command_check)
+            summary["verification"] = verify_install(repo, summary, owndiff_command, args.skip_command_check)
             summary["verified"] = all_verified(summary["verification"])
             exit_code = 0 if summary["verified"] else 3
         else:
