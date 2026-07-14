@@ -40,6 +40,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e '.[build]'
 
+      - name: Run OpenClaw OwnDiff flow
+        run: python scripts/ci_openclaw_flow.py
+
       - name: Build executable
         run: python scripts/build_binary.py --name "${{ matrix.asset }}"
 
@@ -49,6 +52,18 @@ jobs:
           ./dist/${{ matrix.asset }} run --help
           ./dist/${{ matrix.asset }} install-agent-rules --help
           ./dist/${{ matrix.asset }} quiz-web --help
+
+      - name: Install executable through installer
+        env:
+          OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
+          OWNDIFF_BINARY_NAME: owndiff
+          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/${{ matrix.asset }}
+        run: |
+          sh install.sh
+          "$OWNDIFF_BIN_DIR/owndiff" --version
+          "$OWNDIFF_BIN_DIR/owndiff" run --help
+          "$OWNDIFF_BIN_DIR/owndiff" install-agent-rules --help
+          "$OWNDIFF_BIN_DIR/owndiff" quiz-web --help
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4

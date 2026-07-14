@@ -23,6 +23,8 @@ COMMANDS = {
     "run_owndiff": "run_owndiff.py",
     "install-agent-rules": "install_agent_rules.py",
     "install_agent_rules": "install_agent_rules.py",
+    "quiz-web": "quiz_web.py",
+    "quiz_web": "quiz_web.py",
 }
 
 

@@ -14,6 +14,8 @@ Environment:
   OWNDIFF_VERSION=v0.2.0        Install a specific release tag. Default: latest.
   OWNDIFF_BIN_DIR=$HOME/bin     Install directory. Default: /usr/local/bin.
   OWNDIFF_REPO=owner/repo       Release repository. Default: owndiff/own-your-diff.
+  OWNDIFF_DOWNLOAD_URL=file:///tmp/owndiff
+                                Override the release URL. Intended for CI/test harnesses.
   OWNDIFF_DRY_RUN=1             Print detected asset and URL without installing.
 EOF
 }
@@ -42,7 +44,9 @@ case "$(uname -m)" in
 esac
 
 asset="owndiff-${os}-${arch}"
-if [ "$version" = "latest" ]; then
+if [ -n "${OWNDIFF_DOWNLOAD_URL:-}" ]; then
+  url="$OWNDIFF_DOWNLOAD_URL"
+elif [ "$version" = "latest" ]; then
   url="https://github.com/${repo}/releases/latest/download/${asset}"
 else
   url="https://github.com/${repo}/releases/download/${version}/${asset}"

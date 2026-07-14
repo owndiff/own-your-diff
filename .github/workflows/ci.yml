@@ -36,3 +36,45 @@ jobs:
 
       - name: Test
         run: pytest
+
+  cli-install:
+    name: CLI install harness
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[build]'
+
+      - name: Run OpenClaw OwnDiff flow
+        run: python scripts/ci_openclaw_flow.py
+
+      - name: Build executable
+        run: python scripts/build_binary.py --name owndiff
+
+      - name: Install executable through installer
+        env:
+          OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
+          OWNDIFF_BINARY_NAME: owndiff
+          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/owndiff
+        run: |
+          sh install.sh
+          "$OWNDIFF_BIN_DIR/owndiff" --version
+          "$OWNDIFF_BIN_DIR/owndiff" run --help
+          "$OWNDIFF_BIN_DIR/owndiff" install-agent-rules --help
+          "$OWNDIFF_BIN_DIR/owndiff" quiz-web --help
+
+      - name: Verify public installer detection
+        env:
+          OWNDIFF_DRY_RUN: "1"
+          OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
+        run: sh install.sh

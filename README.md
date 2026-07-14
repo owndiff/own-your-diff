@@ -10,6 +10,8 @@
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757?style=flat-square&logo=claude&logoColor=white)](#claude-code)
 [![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](#gemini-cli)
 
+![Own Your Diff workflow](docs/assets/owndiff-social-preview.png)
+
 OwnDiff is a local Agent Skill that makes a human prove they understand risky AI-assisted source-code changes before an agent pushes or opens a merge request.
 
 It analyzes the current git diff, scores risky areas, detects test gaps, and asks the active coding agent's LLM/API to generate easy, diff-grounded MCQs for medium/high/critical source-code risk. Documentation and other non-source-only changes produce a report but no MCQ or gate artifacts. OwnDiff never uses web search or deterministic fallback questions.
@@ -275,6 +277,10 @@ The release workflow builds:
 - `owndiff-linux-x86_64` on `ubuntu-latest`
 
 Run it manually from GitHub Actions to collect artifacts, or push a version tag such as `v0.2.0` to publish those binaries to GitHub Releases.
+
+Before any CI or release binary is created, GitHub Actions runs `scripts/ci_openclaw_flow.py` against a pinned OpenClaw checkout. That flow applies the documented throwaway auth/session diff, verifies OwnDiff asks for an agent LLM response, validates five MCQs, submits the localhost review, and requires the gate to pass.
+
+CI also builds a Linux executable, installs it through `install.sh` using a local file URL, and smoke-tests `owndiff --version`, `owndiff run --help`, `owndiff install-agent-rules --help`, and `owndiff quiz-web --help`. The release workflow repeats the same install harness for each published macOS and Linux asset.
 
 ## Development
 

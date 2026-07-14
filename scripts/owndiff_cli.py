@@ -18,6 +18,7 @@ def _load_commands() -> dict[str, tuple[str, Callable[[list[str] | None], int]]]
     from generate_questions import main as generate_questions_main
     from generate_report import main as generate_report_main
     from install_agent_rules import main as install_agent_rules_main
+    from quiz_web import main as quiz_web_main
     from risk_score import main as risk_score_main
     from run_owndiff import main as run_main
     from test_gap_scan import main as test_gap_main
@@ -32,6 +33,7 @@ def _load_commands() -> dict[str, tuple[str, Callable[[list[str] | None], int]]]
             "generate-mcq": ("Generate MCQ artifacts and initial gate.", generate_mcq_main),
             "generate-report": ("Write the ownership report.", generate_report_main),
             "install-agent-rules": ("Install OwnDiff project rules for coding agents.", install_agent_rules_main),
+            "quiz-web": ("Run the local browser review UI.", quiz_web_main),
         }
     )
     return COMMANDS

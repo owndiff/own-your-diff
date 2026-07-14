@@ -163,18 +163,20 @@ def test_owndiff_cli_dispatches_help() -> None:
     top = run([sys.executable, str(SCRIPTS / "owndiff_cli.py"), "--help"], ROOT)
     run_help = run([sys.executable, str(SCRIPTS / "owndiff_cli.py"), "run", "--help"], ROOT)
     install_help = run([sys.executable, str(SCRIPTS / "owndiff_cli.py"), "install-agent-rules", "--help"], ROOT)
+    quiz_web_help = run([sys.executable, str(SCRIPTS / "owndiff_cli.py"), "quiz-web", "--help"], ROOT)
     version = run([sys.executable, str(SCRIPTS / "owndiff_cli.py"), "--version"], ROOT)
 
     assert "usage: owndiff <command>" in top.stdout
     assert "run" in top.stdout
     assert "install-agent-rules" in top.stdout
-    assert "quiz-web" not in top.stdout
+    assert "quiz-web" in top.stdout
     assert "present-mcq" not in top.stdout
     assert "submit-answers" not in top.stdout
     assert "evaluate-answers" not in top.stdout
     assert "usage: owndiff run" in run_help.stdout
     assert "Run the complete OwnDiff ownership-check pipeline" in run_help.stdout
     assert "usage: owndiff install-agent-rules" in install_help.stdout
+    assert "usage: owndiff quiz-web" in quiz_web_help.stdout
     assert version.stdout.startswith("owndiff ")
 
 
@@ -198,6 +200,42 @@ def test_install_script_detects_current_platform_asset() -> None:
     assert f"asset=owndiff-{expected_os}-{expected_arch}" in result.stdout
     assert "github.com/owndiff/own-your-diff/releases/latest/download" in result.stdout
     assert "target=/tmp/owndiff-bin/owndiff" in result.stdout
+
+
+def test_install_script_can_install_from_override_url(tmp_path: Path) -> None:
+    source = tmp_path / "owndiff-source"
+    source.write_text("#!/usr/bin/env sh\necho owndiff test-build\n", encoding="utf-8")
+    source.chmod(0o755)
+    bin_dir = tmp_path / "bin"
+    env = os.environ.copy()
+    env["OWNDIFF_DOWNLOAD_URL"] = source.as_uri()
+    env["OWNDIFF_BIN_DIR"] = str(bin_dir)
+
+    result = subprocess.run(
+        ["sh", str(ROOT / "install.sh")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    installed = bin_dir / "owndiff"
+    assert installed.exists()
+    assert "owndiff test-build" in result.stdout
+    assert f"OwnDiff installed at {installed}" in result.stdout
+
+
+def test_binary_workflows_validate_openclaw_before_building() -> None:
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    release = (ROOT / ".github" / "workflows" / "release-binaries.yml").read_text(encoding="utf-8")
+
+    assert "python scripts/ci_openclaw_flow.py" in ci
+    assert ci.index("python scripts/ci_openclaw_flow.py") < ci.index("python scripts/build_binary.py --name owndiff")
+    assert "python scripts/ci_openclaw_flow.py" in release
+    assert release.index("python scripts/ci_openclaw_flow.py") < release.index(
+        'python scripts/build_binary.py --name "${{ matrix.asset }}"'
+    )
 
 
 def run_owndiff(repo: Path, *extra_args: str) -> dict[str, object]:
@@ -2001,7 +2039,9 @@ def test_public_files_do_not_embed_local_user_paths() -> None:
         ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml",
         ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml",
         ROOT / ".github" / "workflows" / "ci.yml",
+        ROOT / ".github" / "workflows" / "release-binaries.yml",
         ROOT / ".github" / "dependabot.yml",
+        ROOT / "scripts" / "ci_openclaw_flow.py",
     ]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in checked_files)
 
