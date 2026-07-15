@@ -88,6 +88,7 @@ def clone_openclaw(source: str, ref: str, repo: Path) -> None:
     run(["git", "remote", "add", "origin", source], repo)
     run(["git", "sparse-checkout", "init", "--cone"], repo)
     run(["git", "sparse-checkout", "set", *OPENCLAW_SPARSE_PATHS], repo)
+    run(["git", "config", "extensions.partialClone", "origin"], repo)
     run(["git", "fetch", "--depth", "1", "--filter=blob:none", "origin", ref], repo)
     run(["git", "checkout", "--detach", "-q", "FETCH_HEAD"], repo)
 

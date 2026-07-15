@@ -1,7 +1,7 @@
 {
   "name": "owndiff",
   "version": "0.2.0",
-  "description": "Local ownership gate and MCQ approval skill for AI-assisted code diffs.",
+  "description": "Local ownership gate and multiple choice question approval skill for AI-assisted code diffs.",
   "author": {
     "name": "OwnDiff",
     "url": "https://github.com/owndiff/own-your-diff"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "OwnDiff",
     "shortDescription": "Verify human ownership before risky AI-assisted pushes.",
-    "longDescription": "OwnDiff analyzes local git diffs, scores risky areas, detects test gaps, generates MCQ ownership checks, and writes a local merge/push gate before agents proceed.",
+    "longDescription": "OwnDiff analyzes local git diffs, scores risky areas, detects test gaps, generates multiple choice question ownership checks, and writes a local merge/push gate before agents proceed.",
     "developerName": "OwnDiff",
     "category": "Productivity",
     "capabilities": [
@@ -30,7 +30,7 @@
     "defaultPrompt": [
       "Use OwnDiff before pushing this change.",
       "Run the ownership gate for my current diff.",
-      "Help me answer the OwnDiff MCQs."
+      "Help me answer the OwnDiff multiple choice questions."
     ]
   }
 }

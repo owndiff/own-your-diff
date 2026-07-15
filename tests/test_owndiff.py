@@ -229,9 +229,17 @@ def test_install_script_can_install_from_override_url(tmp_path: Path) -> None:
 def test_binary_workflows_validate_openclaw_before_building() -> None:
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github" / "workflows" / "release-binaries.yml").read_text(encoding="utf-8")
+    openclaw_flow = (ROOT / "scripts" / "ci_openclaw_flow.py").read_text(encoding="utf-8")
 
     assert "python scripts/ci_openclaw_flow.py" in ci
     assert ci.index("python scripts/ci_openclaw_flow.py") < ci.index("python scripts/build_binary.py --name owndiff")
+    assert openclaw_flow.index('"extensions.partialClone"') < openclaw_flow.index('"--filter=blob:none"')
+    linux_build = (ROOT / "scripts" / "build_linux_release_binary.sh").read_text(encoding="utf-8")
+    assert "python scripts/ci_openclaw_flow.py" in linux_build
+    assert linux_build.index("python scripts/ci_openclaw_flow.py") < linux_build.index(
+        'python scripts/build_binary.py --name "$asset"'
+    )
+    assert "bash scripts/build_linux_release_binary.sh" in release
     assert "python scripts/ci_openclaw_flow.py" in release
     assert release.index("python scripts/ci_openclaw_flow.py") < release.index(
         'python scripts/build_binary.py --name "${{ matrix.asset }}"'
@@ -1859,7 +1867,7 @@ def test_agent_installer_writes_verified_agent_files(tmp_path: Path) -> None:
     assert "present_mcq.py" not in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "submit_answers.py" not in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "q1=c" not in (repo / "AGENTS.md").read_text(encoding="utf-8")
-    assert "Do not print MCQs in chat" in (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "Do not print multiple choice questions in chat" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "default browser" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "localhost review server" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "attempt_summary" in (repo / "AGENTS.md").read_text(encoding="utf-8")
@@ -1991,7 +1999,7 @@ def test_claude_marketplace_metadata_is_valid() -> None:
         {
             "name": "owndiff",
             "source": "./",
-            "description": "Local ownership gate and MCQ approval skill for AI-assisted code diffs.",
+            "description": "Local ownership gate and multiple choice question approval skill for AI-assisted code diffs.",
         }
     ]
 

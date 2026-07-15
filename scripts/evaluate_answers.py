@@ -11,8 +11,13 @@ from owndifflib.mcq import evaluate_answers
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Evaluate OwnDiff MCQ answers and write the merge/push gate result.")
-    parser.add_argument("--mcq", default=".owndiff/ownership-mcq.json", help="Public MCQ JSON path.")
+    parser = argparse.ArgumentParser(description="Evaluate OwnDiff multiple choice question answers and write the merge/push gate result.")
+    parser.add_argument(
+        "--mcq",
+        default=".owndiff/ownership-mcq.json",
+        metavar="QUESTIONS_JSON",
+        help="Public multiple choice question JSON path.",
+    )
     parser.add_argument("--answer-key", default=".owndiff/ownership-answer-key.json", help="Local answer key JSON path.")
     parser.add_argument("--answers", default=".owndiff/ownership-answers.json", help="Submitted answers JSON path.")
     parser.add_argument("--out", default=".owndiff/ownership-gate.json", help="Gate JSON output path.")

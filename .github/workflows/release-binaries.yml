@@ -10,17 +10,52 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-linux:
+    name: Build ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    container: ubuntu:20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            asset: owndiff-linux-x86_64
+          - os: ubuntu-24.04-arm
+            asset: owndiff-linux-arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build and smoke test Linux executable
+        run: bash scripts/build_linux_release_binary.sh "${{ matrix.asset }}"
+
+      - name: Install executable through installer
+        env:
+          OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
+          OWNDIFF_BINARY_NAME: owndiff
+          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/${{ matrix.asset }}
+        run: |
+          sh install.sh
+          "$OWNDIFF_BIN_DIR/owndiff" --version
+          "$OWNDIFF_BIN_DIR/owndiff" run --help
+          "$OWNDIFF_BIN_DIR/owndiff" install-agent-rules --help
+          "$OWNDIFF_BIN_DIR/owndiff" quiz-web --help
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+  build-macos:
     name: Build ${{ matrix.asset }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            asset: owndiff-linux-x86_64
-          - os: ubuntu-24.04-arm
-            asset: owndiff-linux-arm64
           - os: macos-26-intel
             asset: owndiff-darwin-x86_64
           - os: macos-26
@@ -74,7 +109,9 @@ jobs:
 
   publish:
     name: Publish release assets
-    needs: build
+    needs:
+      - build-linux
+      - build-macos
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
 

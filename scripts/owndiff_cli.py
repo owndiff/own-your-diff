@@ -30,7 +30,7 @@ def _load_commands() -> dict[str, tuple[str, Callable[[list[str] | None], int]]]
             "test-gap": ("Detect test coverage signals.", test_gap_main),
             "risk-score": ("Score ownership risk.", risk_score_main),
             "generate-questions": ("Prepare or validate agent-written ownership questions.", generate_questions_main),
-            "generate-mcq": ("Generate MCQ artifacts and initial gate.", generate_mcq_main),
+            "generate-mcq": ("Generate multiple choice question artifacts and initial gate.", generate_mcq_main),
             "generate-report": ("Write the ownership report.", generate_report_main),
             "install-agent-rules": ("Install OwnDiff project rules for coding agents.", install_agent_rules_main),
             "quiz-web": ("Run the local browser review UI.", quiz_web_main),

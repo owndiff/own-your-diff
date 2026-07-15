@@ -16,13 +16,13 @@ rule_body: |
 
   OwnDiff uses LLM-written ownership questions and answer choices for medium, high, and critical risk. Use your own current LLM/API context as the coding agent to answer the generated OwnDiff prompt. OwnDiff does not perform web search or browsing for question generation.
 
-  Treat every OwnDiff run as a fresh review for the current diff. Do not reuse previous .owndiff/ownership-answers.json, previous MCQs, or a previous passed gate. OwnDiff clears old local review artifacts before writing the current run's prompt, questions, answers template, and gate.
+  Treat every OwnDiff run as a fresh review for the current diff. Do not reuse previous .owndiff/ownership-answers.json, previous multiple choice questions, or a previous passed gate. OwnDiff clears old local review artifacts before writing the current run's prompt, questions, answers template, and gate.
 
   If the OwnDiff command returns "awaiting_llm_response": true or "question_generation": "agent_llm_required", read .owndiff/question-prompt.md, use your own LLM/API reasoning to produce only the requested JSON, write it to .owndiff/question-response.json, then rerun:
 
   {{owndiff_command}} run --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json
 
-  If the OwnDiff run rejects the LLM response as invalid, repeated, hard, ungrounded, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Generate every question and answer choice with your active model. Do not invent facts, do not use web search, do not use deterministic fallback questions or choices, and do not push/open/update a merge request until OwnDiff validates the MCQs.
+  If the OwnDiff run rejects the LLM response as invalid, repeated, hard, ungrounded, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Generate every question and answer choice with your active model. Do not invent facts, do not use web search, do not use deterministic fallback questions or choices, and do not push/open/update a merge request until OwnDiff validates the multiple choice questions.
 
   If .owndiff/ownership-gate.json says "agent_may_push_merge_request": true, you may proceed after normal tests pass.
 
@@ -41,7 +41,7 @@ rule_body: |
 
   If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked" and set "Push/MR: blocked". If question generation is required, complete the agent LLM response step first; otherwise let the same OwnDiff run open browser review immediately.
 
-  Use the OwnDiff command above as the only MCQ review flow. When questions are pending, it starts a localhost review server and opens the human's default browser so they can use hints, click answers, retry before submitting, and submit the same local gate. The browser page keeps the answer key server-side and binds only to localhost.
+  Use the OwnDiff command above as the only multiple choice question review flow. When questions are pending, it starts a localhost review server and opens the human's default browser so they can use hints, click answers, retry before submitting, and submit the same local gate. The browser page keeps the answer key server-side and binds only to localhost.
 
   Interpret OwnDiff browser-review exit codes this way:
   - 0 means report-only or a passed evaluated gate.
@@ -49,7 +49,7 @@ rule_body: |
   - 3 means answers were written but the evaluated gate failed.
   - 130 means the human canceled.
 
-  Do not print MCQs in chat, do not provide a separate MCQ command, and do not claim the review is waiting in another terminal.
+  Do not print multiple choice questions in chat, do not provide a separate multiple choice question command, and do not claim the review is waiting in another terminal.
 
   After the browser submission, the browser review attempts to close itself, and the OwnDiff command exits back to the same terminal session. On macOS, OwnDiff makes a best-effort attempt to refocus known terminal apps. Then read .owndiff/ownership-gate.json and continue only if "agent_may_push_merge_request" is true.
 

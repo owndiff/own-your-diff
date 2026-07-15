@@ -1,13 +1,13 @@
 ---
 name: owndiff
-description: Verify human ownership of AI-assisted source-code changes by analyzing git diffs, scoring risky areas, detecting test gaps, generating ownership questions, and producing local ownership reports. Use when preparing, reviewing, or finalizing source-code changes, pull requests, agent-generated patches, security-sensitive diffs, or any workflow where a developer should prove they understand behavior, blast radius, failure modes, tests, and rollback before calling code ready. Documentation and other non-source-only changes receive a report without MCQ or gate artifacts.
+description: Verify human ownership of AI-assisted source-code changes by analyzing git diffs, scoring risky areas, detecting test gaps, generating ownership questions, and producing local ownership reports. Use when preparing, reviewing, or finalizing source-code changes, pull requests, agent-generated patches, security-sensitive diffs, or any workflow where a developer should prove they understand behavior, blast radius, failure modes, tests, and rollback before calling code ready. Documentation and other non-source-only changes receive a report without multiple choice questions or gate artifacts.
 ---
 
 # OwnDiff
 
 ## Purpose
 
-Use OwnDiff to turn a source-code diff into a local ownership checkpoint. The scripts extract deterministic facts; the active coding agent uses its own LLM/API context to write focused questions and all answer choices grounded in the changed code, architecture area, risk domain, and test signal before medium, high, or critical source changes can be described as ready. Documentation and other non-source-only changes produce a report without MCQ or gate artifacts. Low-risk source changes stay report-only. LLM question generation is required and must not use web search or outside facts.
+Use OwnDiff to turn a source-code diff into a local ownership checkpoint. The scripts extract deterministic facts; the active coding agent uses its own LLM/API context to write focused questions and all answer choices grounded in the changed code, architecture area, risk domain, and test signal before medium, high, or critical source changes can be described as ready. Documentation and other non-source-only changes produce a report without multiple choice questions or gate artifacts. Low-risk source changes stay report-only. LLM question generation is required and must not use web search or outside facts.
 
 OwnDiff is not a replacement for tests, security review, or code review. It is a local comprehension and evidence layer for AI-assisted development.
 
@@ -25,9 +25,9 @@ OwnDiff loads `configs/default_config.yaml` from the skill, then deep-merges a r
 
 Then inspect the command JSON and `.owndiff/ownership-report.md`. Inspect `.owndiff/ownership-gate.json` only when the command reports `gate_generated: true`.
 
-Treat every `owndiff run` as a fresh review for the current diff. OwnDiff clears old MCQs, submitted answers, answer keys, gates, prompts, reports, and stale canonical LLM responses before writing current artifacts. Do not reuse a previous `.owndiff/ownership-answers.json` or passed gate for a new run.
+Treat every `owndiff run` as a fresh review for the current diff. OwnDiff clears old multiple choice questions, submitted answers, answer keys, gates, prompts, reports, and stale canonical LLM responses before writing current artifacts. Do not reuse a previous `.owndiff/ownership-answers.json` or passed gate for a new run.
 
-If the command reports `source_code_changed: false` and `gate_status: not_required_no_source_changes`, summarize the report and continue without MCQs. OwnDiff intentionally removes stale MCQ, answer, prompt, and gate artifacts in this mode.
+If the command reports `source_code_changed: false` and `gate_status: not_required_no_source_changes`, summarize the report and continue without multiple choice questions. OwnDiff intentionally removes stale multiple choice question, answer, prompt, and gate artifacts in this mode.
 
 For medium, high, or critical source-code risk:
 
@@ -38,16 +38,16 @@ For medium, high, or critical source-code risk:
 5. In browser review, the human clicks radio choices in the local page and submits the same gate. Hints are shown by default and can be hidden; Retry quiz clears current selections before submission. The browser server must bind only to localhost and keep the answer key server-side. After submission, the result page attempts to close itself, the command exits back to the same terminal session, and on macOS OwnDiff makes a best-effort attempt to refocus known terminal apps.
 6. If the default browser cannot be opened automatically, use the printed localhost URL. Do not treat browser-open failure as a gate bypass.
 7. Treat `owndiff run` exit code `0` as passed/report-only, exit code `3` as failed answers, exit code `2` as setup/review-timeout, and exit code `130` as canceled.
-8. Do not print MCQs in chat or route the human to a separate MCQ command.
+8. Do not print multiple choice questions in chat or route the human to a separate multiple choice question command.
 9. Never launch a detached/background quiz or second agent console. Use browser review in the current command.
-10. Treat MCQs as easy ownership checks, not trivia: the default gated run asks five questions, and each question plus hint should be specific to the changed files, code path, architecture area, risk domain, and test evidence already detected by OwnDiff. Use `--question-count` only when the user explicitly wants a different count for one executable run.
+10. Treat multiple choice questions as easy ownership checks, not trivia: the default gated run asks five questions, and each question plus hint should be specific to the changed files, code path, architecture area, risk domain, and test evidence already detected by OwnDiff. Use `--question-count` only when the user explicitly wants a different count for one executable run.
 11. Report the gate `attempt_summary`, such as `Passed after 2 attempts.` or `Attempt 1 failed: 2/3 correct.`.
 12. Continue only when `.owndiff/ownership-gate.json` has `agent_may_push_merge_request: true`.
 13. Keep `.owndiff/ownership-answer-key.json` local; do not print or paste the answer key into chat.
-14. Do not ask the human to open generated files, use transcript expansion controls, or run a separate MCQ command for normal review; use browser review through `owndiff run`.
-15. Do not push, open, or update a merge request while the MCQ gate is `question_generation_required`, `pending_answers`, or `failed`.
+14. Do not ask the human to open generated files, use transcript expansion controls, or run a separate multiple choice question command for normal review; use browser review through `owndiff run`.
+15. Do not push, open, or update a merge request while the multiple choice question gate is `question_generation_required`, `pending_answers`, or `failed`.
 
-For low-risk source code, summarize the report and avoid unnecessary friction. For documentation and other non-source-only changes, do not expect or require an MCQ or gate file.
+For low-risk source code, summarize the report and avoid unnecessary friction. For documentation and other non-source-only changes, do not expect or require a multiple choice question or gate file.
 
 ## Agent Result Format
 
@@ -66,7 +66,7 @@ Push/MR: allowed
 - Evidence: .owndiff/ownership-report.md
 ```
 
-If `agent_may_push_merge_request` is `false`, use `OwnDiff Gate: Blocked` and set `Push/MR: blocked`. If the gate is `question_generation_required`, complete the agent LLM response step first. Otherwise, use the browser review before reporting that the user is blocked; it should open immediately unless `--no-open-browser` is set, then exit back to the same command after submission. If the result is low-risk `report_only`, do not ask unnecessary MCQs. If `gate_status` is `not_required_no_source_changes`, report `OwnDiff Gate: Not required`, note that no source code changed, and do not look for a gate file.
+If `agent_may_push_merge_request` is `false`, use `OwnDiff Gate: Blocked` and set `Push/MR: blocked`. If the gate is `question_generation_required`, complete the agent LLM response step first. Otherwise, use the browser review before reporting that the user is blocked; it should open immediately unless `--no-open-browser` is set, then exit back to the same command after submission. If the result is low-risk `report_only`, do not ask unnecessary multiple choice questions. If `gate_status` is `not_required_no_source_changes`, report `OwnDiff Gate: Not required`, note that no source code changed, and do not look for a gate file.
 
 ## Available Commands
 
@@ -75,7 +75,7 @@ If `agent_may_push_merge_request` is `false`, use `OwnDiff Gate: Blocked` and se
 - `owndiff test-gap` - checks whether code changes have nearby or changed tests.
 - `owndiff risk-score` - scores risk from paths, diff size, domains, tests, and secret-like additions.
 - `owndiff generate-questions` - prepares an agent LLM prompt or validates LLM-written ownership questions from deterministic OwnDiff facts.
-- `owndiff generate-mcq` - creates MCQ JSON, answer key, answers template, and initial gate.
+- `owndiff generate-mcq` - creates multiple choice question JSON, answer key, answers template, and initial gate.
 - `owndiff generate-report` - writes the Markdown report and JSON audit record.
 - `owndiff install-agent-rules` - installs durable project rules for supported coding agents.
 
@@ -83,15 +83,15 @@ Commands accept `--help` and write generated artifacts under `.owndiff/` by defa
 
 ## Risk Interpretation
 
-- no source-code changes: report only; do not generate or require MCQ/gate artifacts.
+- no source-code changes: report only; do not generate or require multiple choice question artifacts or gate artifacts.
 - `low` source-code risk: report-only gate; summarize briefly.
-- `medium`: ask easy, conceptual MCQs that cover behavior, tests, and failure mode.
-- `high`: require conceptual ownership MCQs for behavior, blast radius, failure modes, tests, and rollback.
-- `critical`: require explicit human review and do not describe the change as ready until the MCQ gate and code/test evidence are strong.
+- `medium`: ask easy, conceptual multiple choice questions that cover behavior, tests, and failure mode.
+- `high`: require conceptual ownership multiple choice questions for behavior, blast radius, failure modes, tests, and rollback.
+- `critical`: require explicit human review and do not describe the change as ready until the multiple choice question gate and code/test evidence are strong.
 
 Pay special attention to auth, authorization, payments, database migrations, infrastructure, CI permissions, dependency changes, secrets, cryptography, concurrency, subprocess/eval paths, and data deletion.
 
-For medium, high, or critical risk, use the active coding agent's own LLM/API context to answer the OwnDiff prompt. The prompt explicitly forbids web search, browsing, package registries, issue trackers, and outside facts. The agent must generate every question, hint, and all four answer choices. Reject any LLM output that is not easy, repeats choices or hints, is not grounded in changed files or risk domains, mentions unknown paths, asks for external knowledge, or fails the schema. Do not fall back to deterministic question, hint, or answer templates; block the gate until valid LLM MCQs are generated.
+For medium, high, or critical risk, use the active coding agent's own LLM/API context to answer the OwnDiff prompt. The prompt explicitly forbids web search, browsing, package registries, issue trackers, and outside facts. The agent must generate every question, hint, and all four answer choices. Reject any LLM output that is not easy, repeats choices or hints, is not grounded in changed files or risk domains, mentions unknown paths, asks for external knowledge, or fails the schema. Do not fall back to deterministic question, hint, or answer templates; block the gate until valid LLM multiple choice questions are generated.
 
 ## Human Ownership Evaluation
 
@@ -108,17 +108,17 @@ Good answers usually identify:
 
 Weak answers are vague, only restate the diff, ignore affected callers, omit tests, omit rollback, or claim safety without evidence.
 
-## MCQ Gate
+## Multiple Choice Question Gate
 
-The MCQ gate is the machine-readable control point for agents.
+The multiple choice question gate is the machine-readable control point for agents.
 
 - `ownership-mcq.json` contains public questions and answer choices when source code changed.
 - `ownership-answer-key.json` contains the local answer key. Treat it as review evidence, not a secret in the cryptographic sense.
 - `owndiff run` is the only normal ownership flow. It opens localhost browser review in the user's default browser when questions are pending, writes `ownership-answers.json` after browser submission, and updates the gate.
-- Do not route the human to a separate MCQ command. Browser review through `owndiff run` is the MCQ flow.
+- Do not route the human to a separate multiple choice question command. Browser review through `owndiff run` is the multiple choice question flow.
 - `ownership-gate.json` is the decision artifact. It records `attempts`, `attempts_to_pass`, and `attempt_summary`.
 
-Do not create these MCQ/gate artifacts when no extension enabled under `diff.source_extensions` changed.
+Do not create these multiple choice question artifacts or gate artifacts when no extension enabled under `diff.source_extensions` changed.
 
 Only proceed with push or merge-request creation when:
 
@@ -150,6 +150,6 @@ Common extensions:
 - add risk domains under `risk.domain_rules`;
 - tune thresholds, scores, and gate modes under `risk`;
 - add domain-specific risk detection under `risk.domain_rules`; the LLM prompt will receive matching risk domains.
-- tune MCQ behavior under `mcq`.
+- tune multiple choice question behavior under `mcq`.
 
 Use `configs/example_override.yaml` as a starting point for a repository override.

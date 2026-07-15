@@ -11,13 +11,18 @@ from owndifflib.mcq import generate_mcq_bundle
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate OwnDiff MCQ artifacts and an initial ownership gate.")
+    parser = argparse.ArgumentParser(description="Generate OwnDiff multiple choice question artifacts and an initial ownership gate.")
     parser.add_argument("--repo", default=".", help="Repository path. Defaults to current directory.")
     parser.add_argument("--diff", default=".owndiff/diff.json", help="Diff JSON path.")
     parser.add_argument("--risk", default=".owndiff/risk.json", help="Risk JSON path.")
     parser.add_argument("--tests", default=".owndiff/tests.json", help="Test-gap JSON path.")
     parser.add_argument("--questions", default=".owndiff/questions.json", help="Ownership questions JSON path.")
-    parser.add_argument("--mcq-out", default=".owndiff/ownership-mcq.json", help="Public MCQ JSON output path.")
+    parser.add_argument(
+        "--mcq-out",
+        default=".owndiff/ownership-mcq.json",
+        metavar="QUESTIONS_JSON",
+        help="Public multiple choice question JSON output path.",
+    )
     parser.add_argument("--answer-key-out", default=".owndiff/ownership-answer-key.json", help="Local answer key JSON output path.")
     parser.add_argument("--answers-template-out", default=".owndiff/ownership-answers-template.json", help="Blank answers JSON output path.")
     parser.add_argument("--gate-out", default=".owndiff/ownership-gate.json", help="Initial gate JSON output path.")

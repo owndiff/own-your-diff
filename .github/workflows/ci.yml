@@ -78,3 +78,32 @@ jobs:
           OWNDIFF_DRY_RUN: "1"
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
         run: sh install.sh
+
+      - name: Verify installer asset matrix
+        env:
+          OWNDIFF_DRY_RUN: "1"
+          OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
+        run: |
+          check_asset() {
+            os="$1"
+            arch="$2"
+            expected="$3"
+            fake_bin="$(mktemp -d)"
+            {
+              printf '%s\n' '#!/usr/bin/env sh'
+              printf '%s\n' 'case "$1" in'
+              printf '  -s) echo %s ;;\n' "$os"
+              printf '  -m) echo %s ;;\n' "$arch"
+              printf '%s\n' '  *) exit 2 ;;'
+              printf '%s\n' 'esac'
+            } > "$fake_bin/uname"
+            chmod +x "$fake_bin/uname"
+            actual="$(PATH="$fake_bin:$PATH" sh install.sh | awk -F= '/^asset=/{print $2}')"
+            rm -rf "$fake_bin"
+            test "$actual" = "$expected"
+          }
+
+          check_asset Darwin arm64 owndiff-darwin-arm64
+          check_asset Darwin x86_64 owndiff-darwin-x86_64
+          check_asset Linux aarch64 owndiff-linux-arm64
+          check_asset Linux x86_64 owndiff-linux-x86_64

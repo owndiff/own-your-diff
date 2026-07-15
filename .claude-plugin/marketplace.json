@@ -8,7 +8,7 @@
     {
       "name": "owndiff",
       "source": "./",
-      "description": "Local ownership gate and MCQ approval skill for AI-assisted code diffs."
+      "description": "Local ownership gate and multiple choice question approval skill for AI-assisted code diffs."
     }
   ]
 }

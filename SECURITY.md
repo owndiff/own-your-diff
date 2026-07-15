@@ -21,7 +21,7 @@ Please do not open a public issue for vulnerabilities. Do not include secrets, p
 - For risky diffs, the active coding agent processes a sanitized patch excerpt and deterministic diff facts under that agent provider's existing data and privacy policy.
 - Repository configuration cannot enable an external command provider; question generation only accepts the active `agent` provider.
 - Generated `.owndiff/` artifacts are local and should remain ignored.
-- The MCQ answer key is review evidence, not a cryptographic secret.
+- The multiple choice question answer key is review evidence, not a cryptographic secret.
 - Agents may push or open/update a merge request only after `.owndiff/ownership-gate.json` allows it and normal tests/review requirements pass.
 
 ## Hardening Expectations

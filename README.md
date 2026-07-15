@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml)
 [![Standalone CLI](https://img.shields.io/badge/standalone-CLI-2EA44F)](#install-the-cli)
-[![macOS + Linux](https://img.shields.io/badge/macOS%20%2B%20Linux-tested-0969DA)](#build-and-release-binaries)
+[![Release Binaries](https://img.shields.io/badge/release%20binaries-CI%20verified-0969DA)](#build-and-release-binaries)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-412991?style=flat-square&logo=openai&logoColor=white)](#codex--openai)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757?style=flat-square&logo=claude&logoColor=white)](#claude-code)
@@ -14,7 +14,7 @@
 
 OwnDiff is a local Agent Skill that makes a human prove they understand risky AI-assisted source-code changes before an agent pushes or opens a merge request.
 
-It analyzes the current git diff, scores risky areas, detects test gaps, and asks the active coding agent's LLM/API to generate easy, diff-grounded MCQs for medium/high/critical source-code risk. Documentation and other non-source-only changes produce a report but no MCQ or gate artifacts. OwnDiff never uses web search or deterministic fallback questions.
+It analyzes the current git diff, scores risky areas, detects test gaps, and asks the active coding agent's LLM/API to generate easy, diff-grounded multiple choice questions for medium/high/critical source-code risk. Documentation and other non-source-only changes produce a report but no multiple choice questions or gate artifacts. OwnDiff never uses web search or deterministic fallback questions.
 
 ## Why OwnDiff
 
@@ -27,10 +27,10 @@ OwnDiff adds a local human-in-the-loop checkpoint. It does not write another cod
 1. Collect the current git diff and classify source files from configured extensions without executing target repository code.
 2. Score changed paths, risk domains, diff size, secret-like additions, and nearby test signals.
 3. For medium/high/critical source-code risk, write a sanitized source-only prompt for the active coding agent's LLM/API.
-4. Validate the returned MCQs against changed files and diff facts, then open a localhost browser review.
+4. Validate the returned multiple choice questions against changed files and diff facts, then open a localhost browser review.
 5. Record attempts and set `agent_may_push_merge_request` to `true` only after a perfect submission.
 
-Documentation, Markdown, text, and other non-source-only changes skip MCQ and gate generation. Low-risk source changes keep a report-only gate.
+Documentation, Markdown, text, and other non-source-only changes skip multiple choice question and gate generation. Low-risk source changes keep a report-only gate.
 
 ## Quick Start
 
@@ -72,9 +72,9 @@ Ask your coding agent:
 Run OwnDiff before pushing this change.
 ```
 
-OwnDiff analyzes the diff. For medium/high/critical source-code risk, the active coding agent uses its own LLM/API context to answer OwnDiff's local prompt, then OwnDiff validates those MCQs and opens a browser ownership review by default.
+OwnDiff analyzes the diff. For medium/high/critical source-code risk, the active coding agent uses its own LLM/API context to answer OwnDiff's local prompt, then OwnDiff validates those multiple choice questions and opens a browser ownership review by default.
 
-Each `owndiff run` starts a fresh local review for the current diff. Previous MCQs, answers, answer keys, gates, prompts, reports, and stale LLM response files are cleared before the new run writes current artifacts. If you intentionally pass `--llm-response`, that exact response file is preserved only long enough for the current validation run.
+Each `owndiff run` starts a fresh local review for the current diff. Previous multiple choice questions, answers, answer keys, gates, prompts, reports, and stale LLM response files are cleared before the new run writes current artifacts. If you intentionally pass `--llm-response`, that exact response file is preserved only long enough for the current validation run.
 
 OwnDiff starts a localhost review server and opens your default browser so you can click answers. Hints are shown by default and can be hidden from the review page; **Retry quiz** clears current selections before submission. If the browser cannot be opened automatically, the command prints the local URL and keeps waiting for submission. After submission, the browser review attempts to close itself, the command exits back to the same terminal session, and on macOS it makes a best-effort attempt to refocus known terminal apps.
 
@@ -84,7 +84,7 @@ For source-code changes, an agent may push or open/update a merge request only w
 {"agent_may_push_merge_request": true}
 ```
 
-The same gate records `attempts`, `attempts_to_pass`, and `attempt_summary`, for example `Passed after 2 attempts.`. When no configured source-code extension changed, OwnDiff returns `gate_status: not_required_no_source_changes` and does not write MCQ, answer-key, answer, or gate artifacts.
+The same gate records `attempts`, `attempts_to_pass`, and `attempt_summary`, for example `Passed after 2 attempts.`. When no configured source-code extension changed, OwnDiff returns `gate_status: not_required_no_source_changes` and does not write multiple choice question, answer-key, answer, or gate artifacts.
 
 Add generated artifacts to the target repo's ignore file:
 
@@ -96,7 +96,7 @@ Add generated artifacts to the target repo's ignore file:
 
 The CLI is enough for local use. For durable agent behavior, add OwnDiff to the coding agent or project rules so the agent knows it must run the gate before pushing or opening a merge request.
 
-If an agent does not open browser review for pending MCQs, it is using an old cached OwnDiff install. Update/reload the plugin or reinstall the CLI; current OwnDiff uses localhost browser review only.
+If an agent does not open browser review for pending multiple choice questions, it is using an old cached OwnDiff install. Update/reload the plugin or reinstall the CLI; current OwnDiff uses localhost browser review only.
 
 ### Claude Code
 
@@ -135,7 +135,7 @@ The installer is configuration-driven through [configs/agent_install.yaml](confi
 
 ## Browser Review Demo
 
-End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the skill, let the active agent/model generate validated MCQs from the diff prompt, answer MCQs in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
+End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the skill, let the active agent/model generate validated multiple choice questions from the diff prompt, answer multiple choice questions in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
 
 ![OwnDiff browser review demo](docs/assets/owndiff-browser-demo.gif)
 
@@ -198,7 +198,7 @@ The project-rule installer is configuration-driven through [configs/agent_instal
 
 OwnDiff loads [configs/default_config.yaml](configs/default_config.yaml), then deep-merges `.owndiff.yml`, `.owndiff.yaml`, or `.owndiff.json` from the target repo. Use `--config path/to/config.yaml` for an explicit override.
 
-Common extensions: source-code extensions, language mappings, test path patterns, risk domains, risk thresholds, gate modes, question planning, and MCQ behavior. Add a language under `diff.language_extensions` and mark its extension `true` under `diff.source_extensions` to make it eligible for ownership gating. By default, MCQs are only generated for `medium`, `high`, and `critical` source-code risk, with five questions per gated run. Start from [configs/example_override.yaml](configs/example_override.yaml).
+Common extensions: source-code extensions, language mappings, test path patterns, risk domains, risk thresholds, gate modes, question planning, and multiple choice question behavior. Add a language under `diff.language_extensions` and mark its extension `true` under `diff.source_extensions` to make it eligible for ownership gating. By default, multiple choice questions are only generated for `medium`, `high`, and `critical` source-code risk, with five questions per gated run. Start from [configs/example_override.yaml](configs/example_override.yaml).
 
 Question generation always uses the active coding agent's current LLM/API context:
 
@@ -246,13 +246,13 @@ No. The prompt forbids web search and outside facts. Questions must be grounded 
 
 ### When does the quiz appear?
 
-By default, medium, high, and critical source-code changes require MCQs. Low-risk source changes are report-only. Documentation and other non-source-only changes do not generate MCQ or gate artifacts.
+By default, medium, high, and critical source-code changes require multiple choice questions. Low-risk source changes are report-only. Documentation and other non-source-only changes do not generate multiple choice questions or gate artifacts.
 
 ### Does OwnDiff push code?
 
 No. It writes a local gate decision. The coding agent may push or open/update a merge request only after the gate passes and normal repository checks also allow it.
 
-### How do I answer MCQs?
+### How do I answer multiple choice questions?
 
 Use `owndiff run --repo . --out-dir .owndiff`. When questions are pending, it opens a localhost browser review in your default browser so you can use hints, click answers, retry before submitting, and submit the gate there.
 
@@ -273,14 +273,25 @@ The release workflow builds:
 
 - `owndiff-darwin-arm64` on `macos-26`
 - `owndiff-darwin-x86_64` on `macos-26-intel`
-- `owndiff-linux-arm64` on `ubuntu-24.04-arm`
-- `owndiff-linux-x86_64` on `ubuntu-latest`
+- `owndiff-linux-arm64` on `ubuntu-24.04-arm` inside an Ubuntu 20.04 container
+- `owndiff-linux-x86_64` on `ubuntu-24.04` inside an Ubuntu 20.04 container
 
 Run it manually from GitHub Actions to collect artifacts, or push a version tag such as `v0.2.0` to publish those binaries to GitHub Releases.
 
-Before any CI or release binary is created, GitHub Actions runs `scripts/ci_openclaw_flow.py` against a pinned OpenClaw checkout. That flow applies the documented throwaway auth/session diff, verifies OwnDiff asks for an agent LLM response, validates five MCQs, submits the localhost review, and requires the gate to pass.
+Before any CI or release binary is created, GitHub Actions runs `scripts/ci_openclaw_flow.py` against a pinned OpenClaw checkout. That flow applies the documented throwaway auth/session diff, verifies OwnDiff asks for an agent LLM response, validates five multiple choice questions, submits the localhost review, and requires the gate to pass.
 
-CI also builds a Linux executable, installs it through `install.sh` using a local file URL, and smoke-tests `owndiff --version`, `owndiff run --help`, `owndiff install-agent-rules --help`, and `owndiff quiz-web --help`. The release workflow repeats the same install harness for each published macOS and Linux asset.
+Each release asset must pass this harness before it is uploaded:
+
+| Asset | Native runner | Build environment | Required checks |
+| --- | --- | --- | --- |
+| `owndiff-darwin-arm64` | `macos-26` | native macOS arm64 | OpenClaw flow, build, command smoke tests, installer smoke test |
+| `owndiff-darwin-x86_64` | `macos-26-intel` | native macOS x86_64 | OpenClaw flow, build, command smoke tests, installer smoke test |
+| `owndiff-linux-arm64` | `ubuntu-24.04-arm` | Ubuntu 20.04 container | OpenClaw flow, build, command smoke tests, installer smoke test |
+| `owndiff-linux-x86_64` | `ubuntu-24.04` | Ubuntu 20.04 container | OpenClaw flow, build, command smoke tests, installer smoke test |
+
+Command smoke tests run `owndiff --version`, `owndiff run --help`, `owndiff install-agent-rules --help`, and `owndiff quiz-web --help`. Installer smoke tests run `install.sh` against the freshly built local asset through `OWNDIFF_DOWNLOAD_URL=file://...` and then run the same command smoke tests on the installed executable.
+
+The main CI workflow also dry-runs `install.sh` for all supported asset names so installer detection stays aligned with release assets.
 
 ## Development
 

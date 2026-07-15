@@ -49,7 +49,7 @@ def generate_mcq_bundle(
         "risk_level": risk.get("risk_level", "low"),
         "instructions": (
             "Use owndiff run as the normal flow. It opens localhost browser review in the user's default browser when questions are pending. "
-            "Do not print MCQs in chat or route the human to a separate MCQ command."
+            "Do not print multiple choice questions in chat or route the human to a separate multiple choice question command."
         ),
         "questions": mcq_questions,
     }
@@ -85,7 +85,7 @@ def _no_source_decision() -> dict[str, Any]:
     return {
         "status": "not_required_no_source_changes",
         "agent_may_push_merge_request": True,
-        "recommendation": "No configured source-code extensions changed. No ownership MCQ or gate artifact was generated.",
+        "recommendation": "No configured source-code extensions changed. No ownership multiple choice question artifact or gate artifact was generated.",
     }
 
 
@@ -149,9 +149,9 @@ def evaluate_answers(
         "push_allowed": passed,
         "agent_may_push_merge_request": passed,
         "recommendation": (
-            "Ownership MCQ gate passed. Agent may push/open the merge request if normal tests and review requirements also pass."
+            "Ownership multiple choice question gate passed. Agent may push/open the merge request if normal tests and review requirements also pass."
             if passed
-            else "Ownership MCQ gate failed. Do not push/open the merge request until all answers are correct."
+            else "Ownership multiple choice question gate failed. Do not push/open the merge request until all answers are correct."
         ),
         "results": results,
     }
@@ -282,7 +282,7 @@ def _initial_gate(
         status = mcq_config.get("gate", {}).get("question_generation_status", "question_generation_required")
         allowed = False
         recommendation = (
-            "Agent LLM question generation is required before ownership MCQs can be answered. "
+            "Agent LLM question generation is required before ownership multiple choice questions can be answered. "
             "Do not push/open the merge request until the agent writes and validates the LLM response."
         )
     elif risk.get("gate_mode") == "report_only" or not questions:
@@ -292,7 +292,7 @@ def _initial_gate(
     else:
         status = mcq_config.get("gate", {}).get("pending_status", "pending_answers")
         allowed = False
-        recommendation = "Ownership MCQ answers are required before the agent may push/open the merge request."
+        recommendation = "Ownership multiple choice question answers are required before the agent may push/open the merge request."
     return {
         "schema_version": f"{SCHEMA_VERSION}.gate",
         "created_at": utc_now(),
@@ -303,7 +303,7 @@ def _initial_gate(
         "total": len(questions),
         "attempts": 0,
         "attempts_to_pass": None,
-        "attempt_summary": "No MCQ attempts have been submitted yet." if questions else "No MCQ attempts required.",
+        "attempt_summary": "No multiple choice question attempts have been submitted yet." if questions else "No multiple choice question attempts required.",
         "attempt_history": [],
         "merge_allowed": allowed,
         "push_allowed": allowed,
@@ -346,7 +346,7 @@ def _attempts(out_path: Path, total: int, correct_count: int, score_percent: int
 
 def _attempt_summary(attempts: int, correct_count: int, total: int, passed: bool) -> str:
     if total == 0:
-        return "No MCQ attempts required."
+        return "No multiple choice question attempts required."
     suffix = "attempt" if attempts == 1 else "attempts"
     if passed:
         return f"Passed after {attempts} {suffix}."

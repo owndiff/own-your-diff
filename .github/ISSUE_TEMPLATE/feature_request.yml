@@ -30,7 +30,7 @@ body:
       label: Area
       options:
         - Agent installation
-        - MCQ gate
+        - multiple choice question gate
         - Risk scoring
         - Test gap detection
         - Configuration

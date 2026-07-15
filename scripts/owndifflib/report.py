@@ -103,13 +103,13 @@ def render_markdown(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str,
         for question in qs:
             lines.append(f"{question.get('id')}. **{question.get('dimension')}**: {question.get('question')}")
     elif generation.get("awaiting_llm_response"):
-        lines.append("- Agent LLM question generation is required before MCQs can be answered.")
+        lines.append("- Agent LLM question generation is required before multiple choice questions can be answered.")
         if generation.get("prompt_path"):
             lines.append(f"- Prompt: `{generation.get('prompt_path')}`")
         if generation.get("response_path"):
             lines.append(f"- Expected response: `{generation.get('response_path')}`")
     elif not has_source_changes(diff):
-        lines.append("- No ownership MCQs generated because no configured source-code extension changed.")
+        lines.append("- No ownership multiple choice questions generated because no configured source-code extension changed.")
     else:
         lines.append("- No ownership questions generated.")
 
@@ -120,7 +120,7 @@ def render_markdown(diff: dict[str, Any], risk: dict[str, Any], tests: dict[str,
         )
     elif generation.get("awaiting_llm_response"):
         lines.append(
-            "No human answer can be collected yet. The active coding agent must use its own LLM/API context to generate validated MCQs first."
+            "No human answer can be collected yet. The active coding agent must use its own LLM/API context to generate validated multiple choice questions first."
         )
     elif not has_source_changes(diff):
         lines.append("No source-code ownership gate is required for this documentation or non-source-only change.")
