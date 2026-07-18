@@ -16,7 +16,7 @@ OwnDiff is a local Agent Skill that makes a human prove they understand risky AI
 
 It analyzes the current git diff, scores risky areas, detects test gaps, and asks the active coding agent's LLM/API to generate easy, diff-grounded multiple choice questions for medium/high/critical source-code risk. Documentation and other non-source-only changes produce a report but no multiple choice questions or gate artifacts. OwnDiff never uses web search or deterministic fallback questions.
 
-## Why OwnDiff
+## Why Own Your Diff
 
 AI coding agents can produce a working diff faster than a developer can inspect its behavior, failure modes, test coverage, and rollback path. A passing test suite does not prove that the assigned human understands the change.
 
