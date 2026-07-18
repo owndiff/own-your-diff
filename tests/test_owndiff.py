@@ -240,6 +240,7 @@ def test_binary_workflows_validate_openclaw_before_building() -> None:
         'python scripts/build_binary.py --name "$asset"'
     )
     assert "bash scripts/build_linux_release_binary.sh" in release
+    assert release.count("uses: actions/checkout@v4") == 3
     assert 'OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"' in release
     assert "file://${{ github.workspace }}" not in release
     assert "python scripts/ci_openclaw_flow.py" in release
