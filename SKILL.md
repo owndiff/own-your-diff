@@ -13,12 +13,33 @@ OwnDiff is not a replacement for tests, security review, or code review. It is a
 
 ## Default Workflow
 
-Use the standalone `owndiff` executable. If it is not available on `PATH`, tell the user to install the OwnDiff CLI before enforcing this skill.
+Use the standalone `owndiff` executable. If it is already available on `PATH`, reuse it. If it is missing, bootstrap the released CLI into a user-writable bin directory before enforcing this skill; do not require the user to install it manually first.
+
+Resolve the command once at the start of the workflow:
+
+```bash
+if command -v owndiff >/dev/null 2>&1; then
+  OWNDIFF_CMD=owndiff
+else
+  OWNDIFF_BOOTSTRAP_DIR="${OWNDIFF_BIN_DIR:-$HOME/.local/bin}"
+  mkdir -p "$OWNDIFF_BOOTSTRAP_DIR"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$OWNDIFF_BOOTSTRAP_DIR" sh
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$OWNDIFF_BOOTSTRAP_DIR" sh
+  else
+    echo "OwnDiff needs curl or wget to bootstrap the CLI." >&2
+    exit 2
+  fi
+  OWNDIFF_CMD="$OWNDIFF_BOOTSTRAP_DIR/owndiff"
+fi
+"$OWNDIFF_CMD" --version
+```
 
 From the repository being changed, run the one-command pipeline:
 
 ```bash
-owndiff run --repo . --out-dir .owndiff
+"$OWNDIFF_CMD" run --repo . --out-dir .owndiff
 ```
 
 OwnDiff loads `configs/default_config.yaml` from the skill, then deep-merges a repository override from `.owndiff.yml`, `.owndiff.yaml`, or `.owndiff.json` when present. Use `--config path/to/config.yaml` to pass an explicit override file.
@@ -31,7 +52,7 @@ If the command reports `source_code_changed: false` and `gate_status: not_requir
 
 For medium, high, or critical source-code risk:
 
-1. If the command returns `awaiting_llm_response: true` or `question_generation: agent_llm_required`, read `.owndiff/question-prompt.md`, use your own current LLM/API reasoning to produce the requested JSON, write it to `.owndiff/question-response.json`, then rerun `owndiff run --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json`.
+1. If the command returns `awaiting_llm_response: true` or `question_generation: agent_llm_required`, read `.owndiff/question-prompt.md`, use your own current LLM/API reasoning to produce the requested JSON, write it to `.owndiff/question-response.json`, then rerun `"$OWNDIFF_CMD" run --repo . --out-dir .owndiff --llm-response .owndiff/question-response.json`.
 2. Do not use web search, browsing, package registries, issue trackers, or outside facts when generating that JSON. Use only the OwnDiff prompt and local diff facts.
 3. If OwnDiff rejects the LLM output as invalid, repeated, hard, ungrounded, generic, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Do not substitute deterministic template questions, hints, or answer choices.
 4. If the gate is `pending_answers` or `agent_may_push_merge_request` is `false`, `owndiff run` must immediately open localhost browser review unless `--review-mode none` was explicitly requested for automated tests.

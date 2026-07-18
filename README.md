@@ -3,7 +3,7 @@
 **Human ownership gate for AI coding-agent diffs**
 
 [![CI](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/owndiff/own-your-diff/actions/workflows/ci.yml)
-[![Standalone CLI](https://img.shields.io/badge/standalone-CLI-2EA44F)](#install-the-cli)
+[![Standalone CLI](https://img.shields.io/badge/standalone-CLI-2EA44F)](#direct-cli-install-optional)
 [![Release Binaries](https://img.shields.io/badge/release%20binaries-CI%20verified-0969DA)](#build-and-release-binaries)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-412991?style=flat-square&logo=openai&logoColor=white)](#codex--openai)
@@ -34,7 +34,76 @@ Documentation, Markdown, text, and other non-source-only changes skip multiple c
 
 ## Quick Start
 
-### Install the CLI
+### 1. Install Agent Skill
+
+For Claude Code, Codex, Gemini CLI, and other skill-aware agents, install the OwnDiff skill/plugin first. After that, the user is ready to ask the agent to run OwnDiff; a separate manual CLI install is not required.
+
+On first use, the skill checks for `owndiff`. If it already exists on `PATH`, the skill reuses it. If it is missing, the skill installs the released executable into `${OWNDIFF_BIN_DIR:-$HOME/.local/bin}` and uses that executable path for the current gate run.
+
+#### Claude Code
+
+```text
+/plugin marketplace add owndiff/own-your-diff
+/plugin install owndiff@owndiff
+/reload-plugins
+```
+
+Send the marketplace add and plugin install as separate Claude Code prompts.
+
+#### Codex / OpenAI
+
+```bash
+codex plugin marketplace add owndiff/own-your-diff
+codex plugin add owndiff@owndiff
+```
+
+Start a new Codex thread after installation.
+
+#### Gemini CLI
+
+```bash
+gemini skills install https://github.com/owndiff/own-your-diff.git --consent
+```
+
+### 2. Run OwnDiff
+
+From the repository being changed, ask your coding agent:
+
+```text
+Run OwnDiff before pushing this change.
+```
+
+If you are using OwnDiff directly from a shell instead of an agent skill:
+
+```bash
+owndiff run --repo . --out-dir .owndiff
+```
+
+OwnDiff analyzes the diff. For medium/high/critical source-code risk, the active coding agent uses its own LLM/API context to answer OwnDiff's local prompt, then OwnDiff validates those multiple choice questions and opens a browser ownership review by default.
+
+Each `owndiff run` starts a fresh local review for the current diff. Previous multiple choice questions, answers, answer keys, gates, prompts, reports, and stale LLM response files are cleared before the new run writes current artifacts. If you intentionally pass `--llm-response`, that exact response file is preserved only long enough for the current validation run.
+
+OwnDiff starts a localhost review server and opens your default browser so you can click answers. Hints are shown by default and can be hidden from the review page; **Retry quiz** clears current selections before submission. If the browser cannot be opened automatically, the command prints the local URL and keeps waiting for submission. After submission, the browser review attempts to close itself, the command exits back to the same terminal session, and on macOS it makes a best-effort attempt to refocus known terminal apps.
+
+For source-code changes, an agent may push or open/update a merge request only when `.owndiff/ownership-gate.json` contains:
+
+```json
+{"agent_may_push_merge_request": true}
+```
+
+The same gate records `attempts`, `attempts_to_pass`, and `attempt_summary`, for example `Passed after 2 attempts.`. When no configured source-code extension changed, OwnDiff returns `gate_status: not_required_no_source_changes` and does not write multiple choice question, answer-key, answer, or gate artifacts.
+
+Add generated artifacts to the target repo's ignore file:
+
+```gitignore
+.owndiff/
+```
+
+If an agent does not open browser review for pending multiple choice questions, it is using an old cached OwnDiff install. Update/reload the plugin or reinstall the CLI; current OwnDiff uses localhost browser review only.
+
+### Direct CLI Install Optional
+
+Use this when you want to run OwnDiff yourself without an agent skill, or when you want `owndiff` permanently available on your shell `PATH`.
 
 OwnDiff installs as a single local executable. The installer detects macOS or Linux and the current CPU architecture, downloads the matching release asset, and places `owndiff` on your `PATH`. No Python, shell bootstrap, or virtual environment is required for normal use.
 
@@ -58,77 +127,19 @@ curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.
 
 If the latest-release link returns `404`, publish the first binary release with [Build and Release Binaries](#build-and-release-binaries).
 
-### Run the Gate
-
-From the repository being changed:
-
-```bash
-owndiff run --repo . --out-dir .owndiff
-```
-
-Ask your coding agent:
-
-```text
-Run OwnDiff before pushing this change.
-```
-
-OwnDiff analyzes the diff. For medium/high/critical source-code risk, the active coding agent uses its own LLM/API context to answer OwnDiff's local prompt, then OwnDiff validates those multiple choice questions and opens a browser ownership review by default.
-
-Each `owndiff run` starts a fresh local review for the current diff. Previous multiple choice questions, answers, answer keys, gates, prompts, reports, and stale LLM response files are cleared before the new run writes current artifacts. If you intentionally pass `--llm-response`, that exact response file is preserved only long enough for the current validation run.
-
-OwnDiff starts a localhost review server and opens your default browser so you can click answers. Hints are shown by default and can be hidden from the review page; **Retry quiz** clears current selections before submission. If the browser cannot be opened automatically, the command prints the local URL and keeps waiting for submission. After submission, the browser review attempts to close itself, the command exits back to the same terminal session, and on macOS it makes a best-effort attempt to refocus known terminal apps.
-
-For source-code changes, an agent may push or open/update a merge request only when `.owndiff/ownership-gate.json` contains:
-
-```json
-{"agent_may_push_merge_request": true}
-```
-
-The same gate records `attempts`, `attempts_to_pass`, and `attempt_summary`, for example `Passed after 2 attempts.`. When no configured source-code extension changed, OwnDiff returns `gate_status: not_required_no_source_changes` and does not write multiple choice question, answer-key, answer, or gate artifacts.
-
-Add generated artifacts to the target repo's ignore file:
-
-```gitignore
-.owndiff/
-```
-
-## Agent Setup
-
-The CLI is enough for local use. For durable agent behavior, add OwnDiff to the coding agent or project rules so the agent knows it must run the gate before pushing or opening a merge request.
-
-If an agent does not open browser review for pending multiple choice questions, it is using an old cached OwnDiff install. Update/reload the plugin or reinstall the CLI; current OwnDiff uses localhost browser review only.
-
-### Claude Code
-
-```text
-/plugin marketplace add owndiff/own-your-diff
-/plugin install owndiff@owndiff
-/reload-plugins
-```
-
-Send the marketplace add and plugin install as separate Claude Code prompts.
-
-### Codex / OpenAI
-
-```bash
-codex plugin marketplace add owndiff/own-your-diff
-codex plugin add owndiff@owndiff
-```
-
-Start a new Codex thread after installation.
-
-### Gemini CLI
-
-```bash
-gemini skills install https://github.com/owndiff/own-your-diff.git --consent
-```
-
 ### Project Rules
 
-Use this for OpenCode, Pi, Hermes, Devin, private repos, or when you want OwnDiff rules written into a target project. Install the `owndiff` CLI first, then run:
+Use this for OpenCode, Pi, Hermes, Devin, private repos, or when you want OwnDiff rules written into a target project. If `owndiff` is already installed, run:
 
 ```bash
 owndiff install-agent-rules --repo /path/to/target/repo --agents all --verify
+```
+
+If it is not installed yet, install to a user-writable bin directory first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$HOME/.local/bin" sh
+"$HOME/.local/bin/owndiff" install-agent-rules --repo /path/to/target/repo --agents all --verify
 ```
 
 The installer is configuration-driven through [configs/agent_install.yaml](configs/agent_install.yaml). When run from the standalone executable, it writes durable project rules that call `owndiff` and skips source-checkout skill symlinks.
