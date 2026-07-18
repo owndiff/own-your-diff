@@ -1,6 +1,6 @@
 {
   "name": "owndiff",
-  "version": "0.2.0",
+  "version": "0.0.1",
   "description": "Local ownership gate and multiple choice question approval skill for AI-assisted code diffs.",
   "author": {
     "name": "OwnDiff",

@@ -276,7 +276,7 @@ The release workflow builds:
 - `owndiff-linux-arm64` on `ubuntu-24.04-arm` inside an Ubuntu 20.04 container
 - `owndiff-linux-x86_64` on `ubuntu-24.04` inside an Ubuntu 20.04 container
 
-Run it manually from GitHub Actions to collect artifacts, or push a version tag such as `v0.2.0` to publish those binaries to GitHub Releases.
+Run it manually from GitHub Actions to collect artifacts, or push a version tag such as `v0.0.1` to publish those binaries to GitHub Releases.
 
 Before any CI or release binary is created, GitHub Actions runs `scripts/ci_openclaw_flow.py` against a pinned OpenClaw checkout. That flow applies the documented throwaway auth/session diff, verifies OwnDiff asks for an agent LLM response, validates five multiple choice questions, submits the localhost review, and requires the gate to pass.
 

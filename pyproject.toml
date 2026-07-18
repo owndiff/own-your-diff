@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "owndiff"
-version = "0.2.0"
+version = "0.0.1"
 description = "OwnDiff: local human-ownership checks for AI-assisted code diffs."
 readme = "README.md"
 requires-python = ">=3.11"

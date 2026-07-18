@@ -11,7 +11,7 @@ usage() {
 Install OwnDiff's standalone executable for macOS or Linux.
 
 Environment:
-  OWNDIFF_VERSION=v0.2.0        Install a specific release tag. Default: latest.
+  OWNDIFF_VERSION=v0.0.1        Install a specific release tag. Default: latest.
   OWNDIFF_BIN_DIR=$HOME/bin     Install directory. Default: /usr/local/bin.
   OWNDIFF_REPO=owner/repo       Release repository. Default: owndiff/own-your-diff.
   OWNDIFF_DOWNLOAD_URL=file:///tmp/owndiff

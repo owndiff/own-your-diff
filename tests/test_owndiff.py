@@ -2009,7 +2009,7 @@ def test_codex_marketplace_metadata_is_valid() -> None:
     marketplace = json.loads((ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8"))
 
     assert plugin["name"] == "owndiff"
-    assert plugin["version"] == "0.2.0"
+    assert plugin["version"] == "0.0.1"
     assert plugin["interface"]["displayName"] == "OwnDiff"
     assert plugin["interface"]["defaultPrompt"]
     assert marketplace["name"] == "owndiff"

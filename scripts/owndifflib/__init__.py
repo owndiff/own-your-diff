@@ -1,3 +1,3 @@
 """OwnDiff helper library for local diff ownership checks."""
 
-__version__ = "0.2.0"
+__version__ = "0.0.1"
