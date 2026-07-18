@@ -34,8 +34,8 @@ jobs:
         env:
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
           OWNDIFF_BINARY_NAME: owndiff
-          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/${{ matrix.asset }}
         run: |
+          export OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"
           sh install.sh
           "$OWNDIFF_BIN_DIR/owndiff" --version
           "$OWNDIFF_BIN_DIR/owndiff" run --help
@@ -92,8 +92,8 @@ jobs:
         env:
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
           OWNDIFF_BINARY_NAME: owndiff
-          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/${{ matrix.asset }}
         run: |
+          export OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"
           sh install.sh
           "$OWNDIFF_BIN_DIR/owndiff" --version
           "$OWNDIFF_BIN_DIR/owndiff" run --help
