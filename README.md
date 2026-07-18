@@ -146,7 +146,7 @@ The installer is configuration-driven through [configs/agent_install.yaml](confi
 
 ## Browser Review Demo
 
-End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the skill, let the active agent/model generate validated multiple choice questions from the diff prompt, answer multiple choice questions in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
+End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the agent skill/plugin first, let the skill bootstrap the CLI when needed, run OwnDiff on the OpenClaw diff, answer validated multiple choice questions in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
 
 ![OwnDiff browser review demo](docs/assets/owndiff-browser-demo.gif)
 
