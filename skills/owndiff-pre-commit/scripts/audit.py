@@ -84,10 +84,158 @@ def matches_any(path: str, patterns: list[str]) -> bool:
 def printable_text(path: Path, max_bytes: int) -> str:
     data = path.read_bytes()
     if len(data) > max_bytes:
-        raise AuditError(f"File exceeds max_scan_bytes: {path}")
+        raise AuditError("file exceeds max_scan_bytes")
+    return printable_bytes(data)
+
+
+def printable_bytes(data: bytes) -> str:
     if b"\0" not in data:
         return data.decode("utf-8", errors="replace")
     return "\n".join(match.decode("ascii", errors="ignore") for match in re.findall(rb"[\x20-\x7e]{8,}", data))
+
+
+def compile_patterns(items: list[Any]) -> list[tuple[str, re.Pattern[str]]]:
+    patterns = []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("pattern"):
+            continue
+        pattern_id = str(item.get("id", "privacy_pattern"))
+        try:
+            patterns.append((pattern_id, re.compile(str(item["pattern"]))))
+        except re.error as exc:
+            raise AuditError(f"Invalid privacy pattern {pattern_id}: {exc}") from exc
+    return patterns
+
+
+def compile_allowlist(items: list[Any]) -> list[dict[str, Any]]:
+    allowlist = []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("pattern"):
+            continue
+        pattern_id = str(item.get("id", ""))
+        paths = [str(path) for path in item.get("paths", [])]
+        try:
+            pattern = re.compile(str(item["pattern"]))
+        except re.error as exc:
+            raise AuditError(f"Invalid privacy allowlist pattern {pattern_id}: {exc}") from exc
+        allowlist.append({"id": pattern_id, "paths": paths, "pattern": pattern})
+    return allowlist
+
+
+def is_allowed_privacy_match(pattern_id: str, relative: str, line: str, allowlist: list[dict[str, Any]]) -> bool:
+    for item in allowlist:
+        if item["id"] and item["id"] != pattern_id:
+            continue
+        paths = item.get("paths") or ["*"]
+        if not matches_any(relative, paths):
+            continue
+        if item["pattern"].search(line):
+            return True
+    return False
+
+
+def scan_text_for_patterns(
+    relative: str,
+    text: str,
+    patterns: list[tuple[str, re.Pattern[str]]],
+    allowlist: list[dict[str, Any]],
+    *,
+    prefix: str = "",
+    label: str = "private-data pattern",
+) -> list[str]:
+    findings = []
+    for pattern_id, pattern in patterns:
+        for line_number, line in enumerate(text.splitlines(), 1):
+            if not pattern.search(line):
+                continue
+            if is_allowed_privacy_match(pattern_id, relative, line, allowlist):
+                continue
+            findings.append(f"{prefix}{relative}: matched {label} {pattern_id} on line {line_number}")
+            break
+    return findings
+
+
+def scan_file_for_patterns(
+    root: Path,
+    relative: str,
+    patterns: list[tuple[str, re.Pattern[str]]],
+    review_patterns: list[tuple[str, re.Pattern[str]]],
+    allowlist: list[dict[str, Any]],
+    max_bytes: int,
+) -> tuple[list[str], list[str], str | None]:
+    path = root / relative
+    try:
+        text = printable_text(path, max_bytes)
+    except OSError as exc:
+        return [f"{relative}: failed to read file: {exc.__class__.__name__}"], [], None
+    except AuditError as exc:
+        return [f"{relative}: {exc}"], [], None
+
+    findings = scan_text_for_patterns(relative, text, patterns, allowlist)
+    warnings = scan_text_for_patterns(relative, text, review_patterns, allowlist, label="review pattern")
+    return findings, warnings, text
+
+
+def tracked_paths(root: Path) -> list[str]:
+    return _nul_paths(run_git(root, ["ls-files", "-z"]))
+
+
+def history_commits(root: Path) -> list[str]:
+    return run_git(root, ["log", "--all", "--format=%H"]).decode("utf-8", errors="replace").splitlines()
+
+
+def tree_entries(root: Path, commit: str) -> list[tuple[str, str]]:
+    entries = []
+    for raw_entry in run_git(root, ["ls-tree", "-r", "-z", commit]).split(b"\0"):
+        if not raw_entry:
+            continue
+        try:
+            metadata, raw_path = raw_entry.split(b"\t", 1)
+            parts = metadata.split()
+            if parts[1] != b"blob":
+                continue
+            object_id = parts[2].decode("ascii")
+            relative = raw_path.decode("utf-8", errors="surrogateescape")
+        except (IndexError, ValueError, UnicodeDecodeError):
+            continue
+        entries.append((object_id, relative))
+    return entries
+
+
+def show_blob(root: Path, object_id: str, max_bytes: int) -> str | None:
+    size_raw = run_git(root, ["cat-file", "-s", object_id]).decode("utf-8", errors="replace").strip()
+    try:
+        size = int(size_raw)
+    except ValueError:
+        return None
+    if size > max_bytes:
+        return None
+    data = run_git(root, ["cat-file", "-p", object_id])
+    return printable_bytes(data)
+
+
+def scan_history_for_patterns(
+    root: Path,
+    patterns: list[tuple[str, re.Pattern[str]]],
+    allowlist: list[dict[str, Any]],
+    excluded_paths: list[str],
+    max_bytes: int,
+) -> tuple[list[str], int]:
+    findings = []
+    commits = history_commits(root)
+    blob_cache: dict[str, str | None] = {}
+    for commit in commits:
+        for object_id, relative in tree_entries(root, commit):
+            if matches_any(relative, excluded_paths):
+                continue
+            if object_id not in blob_cache:
+                blob_cache[object_id] = show_blob(root, object_id, max_bytes)
+            text = blob_cache[object_id]
+            if text is None:
+                continue
+            prefix = f"history {commit[:12]}:"
+            findings.extend(scan_text_for_patterns(relative, text, patterns, allowlist, prefix=prefix))
+    return findings, len(commits)
 
 
 def validate_structured_file(path: Path) -> str | None:
@@ -198,7 +346,13 @@ def run_checks(root: Path, checks: list[dict[str, Any]]) -> list[dict[str, Any]]
     return results
 
 
-def audit(root: Path, policy: dict[str, Any], staged: bool, should_run_checks: bool) -> dict[str, Any]:
+def audit(
+    root: Path,
+    policy: dict[str, Any],
+    staged: bool,
+    should_run_checks: bool,
+    scan_history: bool = False,
+) -> dict[str, Any]:
     paths = changed_paths(root, staged)
     staged_files = staged_paths(root)
     findings = []
@@ -213,24 +367,27 @@ def audit(root: Path, policy: dict[str, Any], staged: bool, should_run_checks: b
         if not (root / str(required)).exists():
             findings.append(f"Required public file missing: {required}")
 
-    compiled_patterns = [
-        (str(item.get("id", "privacy_pattern")), re.compile(str(item.get("pattern", ""))))
-        for item in policy.get("privacy_patterns", [])
-        if isinstance(item, dict) and item.get("pattern")
-    ]
+    compiled_patterns = compile_patterns(policy.get("privacy_patterns", []))
+    review_patterns = compile_patterns(policy.get("privacy_review_patterns", []))
+    allowlist = compile_allowlist(policy.get("privacy_allowlist", []))
     max_bytes = int(policy.get("max_scan_bytes", 5 * 1024 * 1024))
-    for relative in paths:
+    scan_paths = sorted(set(paths) | (set(tracked_paths(root)) if scan_history else set()))
+    for relative in scan_paths:
         path = root / relative
         if not path.is_file():
             continue
-        try:
-            text = printable_text(path, max_bytes)
-        except (OSError, AuditError) as exc:
-            findings.append(str(exc))
+        file_findings, file_warnings, text = scan_file_for_patterns(
+            root,
+            relative,
+            compiled_patterns,
+            review_patterns,
+            allowlist,
+            max_bytes,
+        )
+        findings.extend(file_findings)
+        warnings.extend(file_warnings)
+        if text is None:
             continue
-        for pattern_id, pattern in compiled_patterns:
-            if pattern.search(text):
-                findings.append(f"{relative}: matched private-data pattern {pattern_id}")
         structured = validate_structured_file(path)
         if structured:
             warnings.append(structured) if structured.startswith("PyYAML unavailable") else findings.append(structured)
@@ -241,12 +398,24 @@ def audit(root: Path, policy: dict[str, Any], staged: bool, should_run_checks: b
             findings.extend(validate_markdown_links(root, path, text))
 
     findings.extend(version_findings(root, policy.get("version_sources", [])))
+    history_checked = 0
+    if scan_history:
+        history_excluded = [str(item) for item in policy.get("history_excluded_paths", [])]
+        history_findings, history_checked = scan_history_for_patterns(
+            root,
+            compiled_patterns,
+            allowlist,
+            history_excluded,
+            max_bytes,
+        )
+        findings.extend(history_findings)
     checks = run_checks(root, policy.get("checks", [])) if should_run_checks else []
     return {
         "repo": str(root),
-        "mode": "staged" if staged else "worktree",
-        "files_checked": paths,
+        "mode": ("staged" if staged else "worktree") + ("+history" if scan_history else ""),
+        "files_checked": scan_paths,
         "staged_files": staged_files,
+        "history_commits_checked": history_checked,
         "findings": findings,
         "warnings": warnings,
         "checks": checks,
@@ -259,6 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", default=".", help="Repository to audit. Default: current directory.")
     parser.add_argument("--policy", default=str(DEFAULT_POLICY), help="Audit policy JSON.")
     parser.add_argument("--staged", action="store_true", help="Audit only staged files.")
+    parser.add_argument("--history", action="store_true", help="Scan the tracked tree and all local Git history for leaks.")
     parser.add_argument("--run-checks", action="store_true", help="Run configured command-array checks.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     return parser
@@ -268,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         root = git_root(Path(args.repo).resolve())
-        payload = audit(root, load_policy(Path(args.policy).resolve()), args.staged, args.run_checks)
+        payload = audit(root, load_policy(Path(args.policy).resolve()), args.staged, args.run_checks, args.history)
     except AuditError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -278,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"OwnDiff pre-commit audit: {'PASS' if payload['ok'] else 'FAIL'}")
         print(f"Mode: {payload['mode']}; files checked: {len(payload['files_checked'])}")
+        if payload["history_commits_checked"]:
+            print(f"History commits checked: {payload['history_commits_checked']}")
         for finding in payload["findings"]:
             print(f"ERROR: {finding}")
         for warning in payload["warnings"]:

@@ -8,7 +8,17 @@
     ".venv*/**",
     ".pytest_cache/**",
     ".ruff_cache/**",
+    ".codex/**",
+    ".claude/**",
+    ".cursor/**",
+    ".gemini/**",
     "**/__pycache__/**",
+    "**/.env",
+    "**/.env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
     ".idea/**",
     "*.log",
     "*.tmp",
@@ -33,15 +43,54 @@
     },
     {
       "id": "aws_access_key",
-      "pattern": "AKIA[0-9A-Z]{16}"
+      "pattern": "(AKIA|ASIA)[0-9A-Z]{16}"
     },
     {
       "id": "github_token",
-      "pattern": "gh[pousr]_[A-Za-z0-9]{20,}"
+      "pattern": "(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]+)"
+    },
+    {
+      "id": "openai_api_key",
+      "pattern": "sk-[A-Za-z0-9]{20,}"
+    },
+    {
+      "id": "anthropic_api_key",
+      "pattern": "sk-ant-[A-Za-z0-9_-]{20,}"
+    },
+    {
+      "id": "google_api_key",
+      "pattern": "AIza[0-9A-Za-z_-]{35}"
+    },
+    {
+      "id": "slack_token",
+      "pattern": "xox[baprs]-[A-Za-z0-9-]{10,}"
+    },
+    {
+      "id": "bearer_token",
+      "pattern": "(?i)Authorization\\s*:\\s*Bearer\\s+[A-Za-z0-9._-]{20,}"
+    },
+    {
+      "id": "jwt",
+      "pattern": "eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}"
     },
     {
       "id": "api_secret",
       "pattern": "(?i)(api[_-]?key|secret|password|token)\\s*[:=]\\s*[\"']?[A-Za-z0-9_./+=-]{20,}"
+    }
+  ],
+  "privacy_review_patterns": [
+    {
+      "id": "redaction_marker",
+      "pattern": "(?i)\\b(redacted|redact me|secret removed)\\b"
+    }
+  ],
+  "privacy_allowlist": [
+    {
+      "id": "api_secret",
+      "paths": [
+        "tests/test_owndiff.py"
+      ],
+      "pattern": "(not-a-real-[A-Za-z0-9-]+|x{20,}|abcdefghijklmnopqrstuvwxyz)"
     }
   ],
   "required_files": [
@@ -49,7 +98,9 @@
     "SKILL.md",
     "SECURITY.md",
     "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md",
     "LICENSE",
+    "skills.sh.json",
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
     "configs/default_config.yaml"

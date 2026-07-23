@@ -6,9 +6,12 @@
 [![Standalone CLI](https://img.shields.io/badge/standalone-CLI-2EA44F)](#direct-cli-install-optional)
 [![Release Binaries](https://img.shields.io/badge/release%20binaries-CI%20verified-0969DA)](#build-and-release-binaries)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-412991?style=flat-square&logo=openai&logoColor=white)](#codex--openai)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757?style=flat-square&logo=claude&logoColor=white)](#claude-code)
-[![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](#gemini-cli)
+[![Code of Conduct](https://img.shields.io/badge/code%20of%20conduct-active-0969DA)](CODE_OF_CONDUCT.md)
+[![skills.sh](https://skills.sh/b/owndiff/own-your-diff)](https://skills.sh/owndiff/own-your-diff)
+[![npx](https://img.shields.io/badge/npx-skills%20add-CB3837?style=flat-square&logo=npm&logoColor=white)](#skillssh)
+[![OpenAI Codex](https://img.shields.io/badge/OpenAI%20Codex-412991?style=flat-square&logo=openai&logoColor=white)](#agent-targets)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-D97757?style=flat-square&logo=claude&logoColor=white)](#agent-targets)
+[![Gemini CLI](https://img.shields.io/badge/Gemini%20CLI-8E75B2?style=flat-square&logo=googlegemini&logoColor=white)](#agent-targets)
 
 ![Own Your Diff workflow](docs/assets/owndiff-social-preview.png)
 
@@ -40,17 +43,29 @@ For Claude Code, Codex, Gemini CLI, and other skill-aware agents, install the Ow
 
 On first use, the skill checks for `owndiff`. If it already exists on `PATH`, the skill reuses it. If it is missing, the skill installs the released executable into `${OWNDIFF_BIN_DIR:-$HOME/.local/bin}` and uses that executable path for the current gate run.
 
-#### Claude Code
+#### skills.sh
 
-```text
-/plugin marketplace add owndiff/own-your-diff
-/plugin install owndiff@owndiff
-/reload-plugins
+```bash
+npx --yes skills add owndiff/own-your-diff --skill owndiff -y
 ```
 
-Send the marketplace add and plugin install as separate Claude Code prompts.
+The `skills` CLI auto-detects supported local agents. To target one agent, add an exact agent ID.
 
-#### Codex / OpenAI
+#### Agent Targets
+
+| Agent | Verified install command |
+| --- | --- |
+| Claude Code | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent claude-code -y` |
+| Codex / OpenAI | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent codex -y` |
+| Cursor | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent cursor -y` |
+| Windsurf | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent windsurf -y` |
+| Gemini CLI | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent gemini-cli -y` |
+| OpenCode | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent opencode -y` |
+| Roo Code | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent roo -y` |
+| GitHub Copilot | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent github-copilot -y` |
+| OpenClaw | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent openclaw -y` |
+
+For Codex, the native plugin manager is also supported:
 
 ```bash
 codex plugin marketplace add owndiff/own-your-diff
@@ -58,12 +73,6 @@ codex plugin add owndiff@owndiff
 ```
 
 Start a new Codex thread after installation.
-
-#### Gemini CLI
-
-```bash
-gemini skills install https://github.com/owndiff/own-your-diff.git --consent
-```
 
 ### 2. Run OwnDiff
 
@@ -312,3 +321,5 @@ pytest
 ruff check .
 pylint --errors-only $(git ls-files '*.py')
 ```
+
+Contributions should follow [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md).

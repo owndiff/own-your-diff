@@ -1,0 +1,11 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Ownership Gates",
+      "description": "Human ownership checks for AI-assisted source-code diffs.",
+      "skills": ["owndiff"]
+    }
+  ]
+}

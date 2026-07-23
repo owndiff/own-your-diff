@@ -2,6 +2,8 @@
 
 Thanks for helping improve OwnDiff. Keep contributions focused, local-first, and safe for repositories that may contain private code.
 
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md) in issues, pull requests, discussions, and support conversations connected to the project.
+
 ## Development Setup
 
 ```bash
