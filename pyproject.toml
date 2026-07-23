@@ -71,7 +71,6 @@ packages = ["scripts/owndifflib"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/SKILL.md",
   "/README.md",
   "/CONTRIBUTING.md",
   "/SECURITY.md",

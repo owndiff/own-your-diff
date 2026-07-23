@@ -291,13 +291,7 @@ def test_install_script_rejects_untrusted_version_names() -> None:
 
 
 def test_skill_instructions_do_not_bootstrap_remote_installers() -> None:
-    instructions = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (
-            ROOT / "SKILL.md",
-            ROOT / "skills" / "owndiff" / "SKILL.md",
-        )
-    )
+    instructions = (ROOT / "skills" / "owndiff" / "SKILL.md").read_text(encoding="utf-8")
 
     for forbidden in (
         "raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh",
@@ -2053,7 +2047,7 @@ def test_agent_installer_writes_verified_agent_files(tmp_path: Path) -> None:
     payload = json.loads(proc.stdout)
 
     assert payload["verified"] is True
-    assert (repo / ".claude" / "skills" / "owndiff").resolve() == ROOT
+    assert (repo / ".claude" / "skills" / "owndiff").resolve() == ROOT / "skills" / "owndiff"
     assert (repo / ".agents" / "skills" / "owndiff" / "SKILL.md").exists()
     assert "agent_may_push_merge_request" in (repo / "CLAUDE.md").read_text(encoding="utf-8")
     assert "agent_may_push_merge_request" in (repo / "AGENTS.md").read_text(encoding="utf-8")
@@ -2230,7 +2224,6 @@ def test_codex_marketplace_metadata_is_valid() -> None:
 def test_public_files_do_not_embed_local_user_paths() -> None:
     checked_files = [
         ROOT / "README.md",
-        ROOT / "SKILL.md",
         ROOT / "skills" / "owndiff" / "SKILL.md",
         ROOT / ".claude-plugin" / "plugin.json",
         ROOT / ".claude-plugin" / "marketplace.json",

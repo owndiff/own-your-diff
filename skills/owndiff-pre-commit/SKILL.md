@@ -39,7 +39,7 @@ The leak audit must cover the current tracked tree, staged diff, unstaged diff, 
    - Verify unstable install syntax with the installed CLI's `--help` first.
    - When local help is unavailable, use only the agent vendor's official documentation and cite it in the work log.
    - Do not claim an agent, command, browser review, or workflow was tested unless it actually ran.
-   - Remove a document or asset only when it is duplicated, stale, unreferenced, generated, or outside the product's supported workflow. Preserve `README.md`, `SKILL.md`, `SECURITY.md`, `CONTRIBUTING.md`, licenses, manifests, and referenced media unless evidence shows they are obsolete.
+   - Remove a document or asset only when it is duplicated, stale, unreferenced, generated, or outside the product's supported workflow. Preserve `README.md`, `skills/owndiff/SKILL.md`, `SECURITY.md`, `CONTRIBUTING.md`, licenses, manifests, and referenced media unless evidence shows they are obsolete.
 7. Run OwnDiff on the exact candidate diff. For medium/high/critical risk, use the active agent model to generate every question and answer choice, validate the response, and complete the real browser review gate.
 8. Re-run the audit, tests, skill/plugin validators, release-asset verification when applicable, and leak audit after every correction.
 9. Report:

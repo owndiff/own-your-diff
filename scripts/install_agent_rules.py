@@ -16,6 +16,7 @@ from owndifflib.config import bundled_root
 BEGIN_MARKER = "<!-- BEGIN OWNDIFF AGENT RULE -->"
 END_MARKER = "<!-- END OWNDIFF AGENT RULE -->"
 SKILL_DIR = Path(__file__).resolve().parents[1]
+PUBLIC_SKILL_DIR = SKILL_DIR / "skills" / "owndiff"
 DEFAULT_CONFIG = bundled_root() / "configs" / "agent_install.yaml"
 
 
@@ -186,7 +187,8 @@ def install_agents(
         raise InstallError("Config missing rule_body")
 
     context = {
-        "skill_dir": str(SKILL_DIR),
+        "skill_dir": str(PUBLIC_SKILL_DIR),
+        "repo_root": str(SKILL_DIR),
         "repo": str(repo),
         "python_command": python_command,
         "owndiff_command": owndiff_command,
@@ -195,7 +197,8 @@ def install_agents(
 
     summary: dict[str, Any] = {
         "repo": str(repo),
-        "skill_dir": str(SKILL_DIR),
+        "skill_dir": str(PUBLIC_SKILL_DIR),
+        "repo_root": str(SKILL_DIR),
         "agents": [],
         "dry_run": dry_run,
     }

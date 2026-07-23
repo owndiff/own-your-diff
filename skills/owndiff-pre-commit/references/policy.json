@@ -95,7 +95,7 @@
   ],
   "required_files": [
     "README.md",
-    "SKILL.md",
+    "skills/owndiff/SKILL.md",
     "SECURITY.md",
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
