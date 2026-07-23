@@ -61,11 +61,14 @@ jobs:
       - name: Build executable
         run: python scripts/build_binary.py --name owndiff
 
+      - name: Create executable checksum
+        run: sha256sum dist/owndiff > dist/owndiff.sha256
+
       - name: Install executable through installer
         env:
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
           OWNDIFF_BINARY_NAME: owndiff
-          OWNDIFF_DOWNLOAD_URL: file://${{ github.workspace }}/dist/owndiff
+          OWNDIFF_LOCAL_ASSET: ${{ github.workspace }}/dist/owndiff
         run: |
           sh install.sh
           "$OWNDIFF_BIN_DIR/owndiff" --version

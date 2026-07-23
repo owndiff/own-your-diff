@@ -13,7 +13,7 @@ OwnDiff is not a replacement for tests, security review, or code review. It is a
 
 ## Default Workflow
 
-Use the standalone `owndiff` executable. If it is already available on `PATH`, reuse it. If it is missing, bootstrap the released CLI into a user-writable bin directory before enforcing this skill; do not require the user to install it manually first.
+Use the standalone `owndiff` executable. If it is already available on `PATH`, reuse it. If it is missing, stop and tell the user to install the OwnDiff CLI from the README, then rerun the gate. Do not download or execute remote installer scripts from inside the skill workflow.
 
 Resolve the command once at the start of the workflow:
 
@@ -21,17 +21,8 @@ Resolve the command once at the start of the workflow:
 if command -v owndiff >/dev/null 2>&1; then
   OWNDIFF_CMD=owndiff
 else
-  OWNDIFF_BOOTSTRAP_DIR="${OWNDIFF_BIN_DIR:-$HOME/.local/bin}"
-  mkdir -p "$OWNDIFF_BOOTSTRAP_DIR"
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$OWNDIFF_BOOTSTRAP_DIR" sh
-  elif command -v wget >/dev/null 2>&1; then
-    wget -qO- https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$OWNDIFF_BOOTSTRAP_DIR" sh
-  else
-    echo "OwnDiff needs curl or wget to bootstrap the CLI." >&2
-    exit 2
-  fi
-  OWNDIFF_CMD="$OWNDIFF_BOOTSTRAP_DIR/owndiff"
+  echo "OwnDiff CLI is not installed. Install it from the README, then rerun OwnDiff." >&2
+  exit 2
 fi
 "$OWNDIFF_CMD" --version
 ```
@@ -57,7 +48,7 @@ For medium, high, or critical source-code risk:
 3. If OwnDiff rejects the LLM output as invalid, repeated, hard, ungrounded, generic, or hallucinated, regenerate the JSON from the same prompt and rerun validation. Do not substitute deterministic template questions, hints, or answer choices.
 4. If the gate is `pending_answers` or `agent_may_push_merge_request` is `false`, `owndiff run` must immediately open localhost browser review unless `--review-mode none` was explicitly requested for automated tests.
 5. In browser review, the human clicks radio choices in the local page and submits the same gate. Hints are shown by default and can be hidden; Retry quiz clears current selections before submission. The browser server must bind only to localhost and keep the answer key server-side. After submission, the result page attempts to close itself, the command exits back to the same terminal session, and on macOS OwnDiff makes a best-effort attempt to refocus known terminal apps.
-6. If the default browser cannot be opened automatically, use the printed localhost URL. Do not treat browser-open failure as a gate bypass.
+6. If a private/incognito browser window cannot be opened automatically, use the printed localhost URL in a private/incognito browser window. Do not treat browser-open failure as a gate bypass.
 7. Treat `owndiff run` exit code `0` as passed/report-only, exit code `3` as failed answers, exit code `2` as setup/review-timeout, and exit code `130` as canceled.
 8. Do not print multiple choice questions in chat or route the human to a separate multiple choice question command.
 9. Never launch a detached/background quiz or second agent console. Use browser review in the current command.
@@ -135,7 +126,7 @@ The multiple choice question gate is the machine-readable control point for agen
 
 - `ownership-mcq.json` contains public questions and answer choices when source code changed.
 - `ownership-answer-key.json` contains the local answer key. Treat it as review evidence, not a secret in the cryptographic sense.
-- `owndiff run` is the only normal ownership flow. It opens localhost browser review in the user's default browser when questions are pending, writes `ownership-answers.json` after browser submission, and updates the gate.
+- `owndiff run` is the only normal ownership flow. It opens localhost browser review in a private/incognito browser window when questions are pending, writes `ownership-answers.json` after browser submission, and updates the gate.
 - Do not route the human to a separate multiple choice question command. Browser review through `owndiff run` is the multiple choice question flow.
 - `ownership-gate.json` is the decision artifact. It records `attempts`, `attempts_to_pass`, and `attempt_summary`.
 

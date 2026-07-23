@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
@@ -199,16 +200,24 @@ def test_install_script_detects_current_platform_asset() -> None:
 
     assert f"asset=owndiff-{expected_os}-{expected_arch}" in result.stdout
     assert "github.com/owndiff/own-your-diff/releases/latest/download" in result.stdout
+    assert (
+        f"checksum_url=https://github.com/owndiff/own-your-diff/releases/latest/download/"
+        f"owndiff-{expected_os}-{expected_arch}.sha256"
+    ) in result.stdout
     assert "target=/tmp/owndiff-bin/owndiff" in result.stdout
 
 
-def test_install_script_can_install_from_override_url(tmp_path: Path) -> None:
+def test_install_script_can_install_from_local_asset(tmp_path: Path) -> None:
     source = tmp_path / "owndiff-source"
     source.write_text("#!/usr/bin/env sh\necho owndiff test-build\n", encoding="utf-8")
     source.chmod(0o755)
+    source.with_name(f"{source.name}.sha256").write_text(
+        f"{hashlib.sha256(source.read_bytes()).hexdigest()}  {source.name}\n",
+        encoding="utf-8",
+    )
     bin_dir = tmp_path / "bin"
     env = os.environ.copy()
-    env["OWNDIFF_DOWNLOAD_URL"] = source.as_uri()
+    env["OWNDIFF_LOCAL_ASSET"] = str(source)
     env["OWNDIFF_BIN_DIR"] = str(bin_dir)
 
     result = subprocess.run(
@@ -226,27 +235,176 @@ def test_install_script_can_install_from_override_url(tmp_path: Path) -> None:
     assert f"OwnDiff installed at {installed}" in result.stdout
 
 
+def test_install_script_rejects_local_asset_with_bad_checksum(tmp_path: Path) -> None:
+    source = tmp_path / "owndiff-source"
+    source.write_text("#!/usr/bin/env sh\necho owndiff test-build\n", encoding="utf-8")
+    source.chmod(0o755)
+    source.with_name(f"{source.name}.sha256").write_text(f"{'0' * 64}  {source.name}\n", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    env = os.environ.copy()
+    env["OWNDIFF_LOCAL_ASSET"] = str(source)
+    env["OWNDIFF_BIN_DIR"] = str(bin_dir)
+
+    result = subprocess.run(
+        ["sh", str(ROOT / "install.sh")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "checksum verification failed" in result.stderr
+    assert not (bin_dir / "owndiff").exists()
+
+
+def test_install_script_does_not_expose_remote_download_overrides() -> None:
+    installer = (ROOT / "install.sh").read_text(encoding="utf-8")
+
+    for forbidden in (
+        "OWNDIFF_" + "DOWNLOAD_URL",
+        "OWNDIFF_" + "CHECKSUM_URL",
+        "OWNDIFF_" + "REPO",
+    ):
+        assert forbidden not in installer
+    assert "OWNDIFF_LOCAL_ASSET" in installer
+    assert "OWNDIFF_LOCAL_CHECKSUM" in installer
+
+
+def test_install_script_rejects_untrusted_version_names() -> None:
+    env = os.environ.copy()
+    env["OWNDIFF_DRY_RUN"] = "1"
+    env["OWNDIFF_VERSION"] = "https://example.test/owndiff"
+
+    result = subprocess.run(
+        ["sh", str(ROOT / "install.sh")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "unsupported OWNDIFF_VERSION" in result.stderr
+
+
+def test_skill_instructions_do_not_bootstrap_remote_installers() -> None:
+    instructions = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "SKILL.md",
+            ROOT / "skills" / "owndiff" / "SKILL.md",
+        )
+    )
+
+    for forbidden in (
+        "raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh",
+        "curl -fsSL",
+        "wget -qO-",
+        "| sh",
+        "bootstrap the " + "released CLI",
+    ):
+        assert forbidden not in instructions
+    assert "Do not download or execute remote installer scripts from inside the skill workflow." in instructions
+
+
 def test_binary_workflows_validate_openclaw_before_building() -> None:
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github" / "workflows" / "release-binaries.yml").read_text(encoding="utf-8")
     openclaw_flow = (ROOT / "scripts" / "ci_openclaw_flow.py").read_text(encoding="utf-8")
+    verifier = (ROOT / "scripts" / "verify_release_assets.py").read_text(encoding="utf-8")
 
     assert "python scripts/ci_openclaw_flow.py" in ci
     assert ci.index("python scripts/ci_openclaw_flow.py") < ci.index("python scripts/build_binary.py --name owndiff")
+    assert "sha256sum dist/owndiff > dist/owndiff.sha256" in ci
     assert openclaw_flow.index('"extensions.partialClone"') < openclaw_flow.index('"--filter=blob:none"')
     linux_build = (ROOT / "scripts" / "build_linux_release_binary.sh").read_text(encoding="utf-8")
     assert "python scripts/ci_openclaw_flow.py" in linux_build
     assert linux_build.index("python scripts/ci_openclaw_flow.py") < linux_build.index(
         'python scripts/build_binary.py --name "$asset"'
     )
+    assert 'sha256sum "./dist/${asset}" > "./dist/${asset}.sha256"' in linux_build
     assert "bash scripts/build_linux_release_binary.sh" in release
     assert release.count("uses: actions/checkout@v4") == 3
-    assert 'OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"' in release
-    assert "file://${{ github.workspace }}" not in release
+    assert "OWNDIFF_LOCAL_ASSET: ${{ github.workspace }}/dist/${{ matrix.asset }}" in release
+    assert "dist/${{ matrix.asset }}.sha256" in release
+    assert 'shasum -a 256 "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.sha256"' in release
+    assert 'python scripts/verify_release_assets.py --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME"' in release
     assert "python scripts/ci_openclaw_flow.py" in release
     assert release.index("python scripts/ci_openclaw_flow.py") < release.index(
         'python scripts/build_binary.py --name "${{ matrix.asset }}"'
     )
+    for asset in (
+        "owndiff-darwin-arm64",
+        "owndiff-darwin-x86_64",
+        "owndiff-linux-arm64",
+        "owndiff-linux-x86_64",
+    ):
+        assert asset in verifier
+
+
+def test_release_asset_verifier_accepts_matching_local_sidecars(tmp_path: Path) -> None:
+    release_dir = tmp_path / "release"
+    release_dir.mkdir()
+    assets = ["owndiff-linux-x86_64", "owndiff-linux-arm64"]
+    for asset in assets:
+        binary = release_dir / asset
+        binary.write_bytes(f"{asset}\n".encode())
+        binary.with_name(f"{asset}.sha256").write_text(
+            f"{hashlib.sha256(binary.read_bytes()).hexdigest()}  {asset}\n",
+            encoding="utf-8",
+        )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "verify_release_assets.py"),
+            "--release-dir",
+            str(release_dir),
+            "--asset",
+            assets[0],
+            "--asset",
+            assets[1],
+            "--json",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    payload = json.loads(proc.stdout)
+
+    assert payload["ok"] is True
+    assert payload["findings"] == []
+
+
+def test_release_asset_verifier_rejects_missing_sidecar(tmp_path: Path) -> None:
+    release_dir = tmp_path / "release"
+    release_dir.mkdir()
+    (release_dir / "owndiff-linux-x86_64").write_bytes(b"binary\n")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPTS / "verify_release_assets.py"),
+            "--release-dir",
+            str(release_dir),
+            "--asset",
+            "owndiff-linux-x86_64",
+            "--json",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    payload = json.loads(proc.stdout)
+
+    assert proc.returncode == 1
+    assert payload["ok"] is False
+    assert "missing checksum sidecar: owndiff-linux-x86_64.sha256" in payload["findings"]
 
 
 def run_owndiff(repo: Path, *extra_args: str) -> dict[str, object]:
@@ -1627,7 +1785,7 @@ def test_browser_review_can_refocus_known_macos_terminal(monkeypatch) -> None:
     assert calls == [["open", "-a", "Warp"]]
 
 
-def test_browser_review_opens_browser_by_default(tmp_path: Path, monkeypatch) -> None:
+def test_browser_review_opens_private_browser_by_default_without_printing_token(tmp_path: Path, monkeypatch, capsys) -> None:
     mcq_path = tmp_path / "ownership-mcq.json"
     mcq_path.write_text(
         json.dumps(
@@ -1673,13 +1831,16 @@ def test_browser_review_opens_browser_by_default(tmp_path: Path, monkeypatch) ->
         ]
     )
 
+    captured = capsys.readouterr()
     assert result == 2
     assert opened
     assert opened[0].startswith("http://127.0.0.1:")
     assert "token=" in opened[0]
+    assert "opened in a private/incognito browser window" in captured.err
+    assert "OwnDiff browser review: http://127.0.0.1:" not in captured.err
 
 
-def test_browser_review_uses_native_browser_opener_first(monkeypatch) -> None:
+def test_browser_review_uses_private_browser_opener_first_on_macos(monkeypatch) -> None:
     calls: list[list[str]] = []
 
     class Result:
@@ -1693,10 +1854,43 @@ def test_browser_review_uses_native_browser_opener_first(monkeypatch) -> None:
     monkeypatch.setattr(quiz_web.subprocess, "run", capture_run)
 
     assert quiz_web._open_browser("http://127.0.0.1:12345/?token=test") is True
-    assert calls == [["/usr/bin/open", "http://127.0.0.1:12345/?token=test"]]
+    assert calls == [
+        [
+            "/usr/bin/open",
+            "-na",
+            "Google Chrome",
+            "--args",
+            "--incognito",
+            "--new-window",
+            "http://127.0.0.1:12345/?token=test",
+        ]
+    ]
 
 
-def test_browser_review_does_not_fail_when_default_browser_does_not_open(tmp_path: Path, monkeypatch, capsys) -> None:
+def test_browser_review_uses_private_browser_opener_on_linux(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    class Result:
+        returncode = 0
+
+    def capture_run(command: list[str], **_kwargs: object) -> Result:
+        calls.append(command)
+        return Result()
+
+    monkeypatch.setattr(quiz_web.sys, "platform", "linux")
+    monkeypatch.setattr(quiz_web.shutil, "which", lambda name: f"/usr/bin/{name}" if name == "firefox" else None)
+    monkeypatch.setattr(quiz_web.subprocess, "run", capture_run)
+
+    assert quiz_web._open_browser("http://127.0.0.1:12345/?token=test") is True
+    assert calls == [["firefox", "--private-window", "http://127.0.0.1:12345/?token=test"]]
+
+
+def test_browser_review_does_not_fall_back_to_normal_browser(monkeypatch) -> None:
+    monkeypatch.setattr(quiz_web.sys, "platform", "unsupported")
+    assert quiz_web._open_browser("http://127.0.0.1:12345/?token=test") is False
+
+
+def test_browser_review_does_not_fail_when_private_browser_does_not_open(tmp_path: Path, monkeypatch, capsys) -> None:
     mcq_path = tmp_path / "ownership-mcq.json"
     mcq_path.write_text(
         json.dumps(
@@ -1739,8 +1933,8 @@ def test_browser_review_does_not_fail_when_default_browser_does_not_open(tmp_pat
 
     captured = capsys.readouterr()
     assert result == 2
-    assert "could not open the default browser automatically" in captured.err
-    assert "OwnDiff browser review:" in captured.err
+    assert "could not open a private/incognito browser window automatically" in captured.err
+    assert "Open this localhost URL in a private/incognito browser window: http://127.0.0.1:" in captured.err
 
 
 def test_run_owndiff_opens_browser_review_without_terminal_interaction(tmp_path: Path) -> None:
@@ -1871,7 +2065,7 @@ def test_agent_installer_writes_verified_agent_files(tmp_path: Path) -> None:
     assert "submit_answers.py" not in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "q1=c" not in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "Do not print multiple choice questions in chat" in (repo / "AGENTS.md").read_text(encoding="utf-8")
-    assert "default browser" in (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "private/incognito browser window" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "localhost review server" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "attempt_summary" in (repo / "AGENTS.md").read_text(encoding="utf-8")
     assert "question-prompt.md" in (repo / "AGENTS.md").read_text(encoding="utf-8")
@@ -2053,6 +2247,7 @@ def test_public_files_do_not_embed_local_user_paths() -> None:
         ROOT / ".github" / "workflows" / "release-binaries.yml",
         ROOT / ".github" / "dependabot.yml",
         ROOT / "scripts" / "ci_openclaw_flow.py",
+        ROOT / "scripts" / "verify_release_assets.py",
     ]
     combined = "\n".join(path.read_text(encoding="utf-8") for path in checked_files)
 

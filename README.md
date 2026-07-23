@@ -39,9 +39,9 @@ Documentation, Markdown, text, and other non-source-only changes skip multiple c
 
 ### 1. Install Agent Skill
 
-For Claude Code, Codex, Gemini CLI, and other skill-aware agents, install the OwnDiff skill/plugin first. After that, the user is ready to ask the agent to run OwnDiff; a separate manual CLI install is not required.
+For Claude Code, Codex, Gemini CLI, and other skill-aware agents, install the OwnDiff skill/plugin first.
 
-On first use, the skill checks for `owndiff`. If it already exists on `PATH`, the skill reuses it. If it is missing, the skill installs the released executable into `${OWNDIFF_BIN_DIR:-$HOME/.local/bin}` and uses that executable path for the current gate run.
+The skill uses the `owndiff` executable from `PATH`. If the CLI is missing, install it once with [Direct CLI Install Optional](#direct-cli-install-optional), then rerun the gate.
 
 #### skills.sh
 
@@ -49,11 +49,17 @@ On first use, the skill checks for `owndiff`. If it already exists on `PATH`, th
 npx --yes skills add owndiff/own-your-diff --skill owndiff -y
 ```
 
+If npm is configured to a private registry that does not mirror the `skills` package, pass the public registry override before `skills`:
+
+```bash
+npx --yes --registry=https://registry.npmjs.org/ skills add owndiff/own-your-diff --skill owndiff -y
+```
+
 The `skills` CLI auto-detects supported local agents. To target one agent, add an exact agent ID.
 
 #### Agent Targets
 
-| Agent | Verified install command |
+| Agent | Install command |
 | --- | --- |
 | Claude Code | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent claude-code -y` |
 | Codex / OpenAI | `npx --yes skills add owndiff/own-your-diff --skill owndiff --agent codex -y` |
@@ -92,7 +98,7 @@ OwnDiff analyzes the diff. For medium/high/critical source-code risk, the active
 
 Each `owndiff run` starts a fresh local review for the current diff. Previous multiple choice questions, answers, answer keys, gates, prompts, reports, and stale LLM response files are cleared before the new run writes current artifacts. If you intentionally pass `--llm-response`, that exact response file is preserved only long enough for the current validation run.
 
-OwnDiff starts a localhost review server and opens your default browser so you can click answers. Hints are shown by default and can be hidden from the review page; **Retry quiz** clears current selections before submission. If the browser cannot be opened automatically, the command prints the local URL and keeps waiting for submission. After submission, the browser review attempts to close itself, the command exits back to the same terminal session, and on macOS it makes a best-effort attempt to refocus known terminal apps.
+OwnDiff starts a localhost review server and opens a private/incognito browser window so you can click answers without using an existing signed-in browser session. Hints are shown by default and can be hidden from the review page; **Retry quiz** clears current selections before submission. If a private/incognito browser cannot be opened automatically, the command prints the local URL and keeps waiting for submission. After submission, the browser review attempts to close itself, the command exits back to the same terminal session, and on macOS it makes a best-effort attempt to refocus known terminal apps.
 
 For source-code changes, an agent may push or open/update a merge request only when `.owndiff/ownership-gate.json` contains:
 
@@ -114,10 +120,12 @@ If an agent does not open browser review for pending multiple choice questions, 
 
 Use this when you want to run OwnDiff yourself without an agent skill, or when you want `owndiff` permanently available on your shell `PATH`.
 
-OwnDiff installs as a single local executable. The installer detects macOS or Linux and the current CPU architecture, downloads the matching release asset, and places `owndiff` on your `PATH`. No Python, shell bootstrap, or virtual environment is required for normal use.
+OwnDiff installs as a single local executable. The installer detects macOS or Linux and the current CPU architecture, downloads the matching release asset, verifies the release asset SHA-256 checksum, and places `owndiff` on your `PATH`. No Python or virtual environment is required for normal use.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | sh
+tmp_dir="$(mktemp -d)"
+curl -fsSLo "$tmp_dir/owndiff-install.sh" https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh
+sh "$tmp_dir/owndiff-install.sh"
 owndiff --version
 ```
 
@@ -128,10 +136,14 @@ The release workflow publishes these assets:
 - `owndiff-linux-arm64`
 - `owndiff-linux-x86_64`
 
+Each binary is published with a matching `.sha256` sidecar used by `install.sh`.
+
 To install somewhere other than `/usr/local/bin`, use:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$HOME/.local/bin" sh
+tmp_dir="$(mktemp -d)"
+curl -fsSLo "$tmp_dir/owndiff-install.sh" https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh
+OWNDIFF_BIN_DIR="$HOME/.local/bin" sh "$tmp_dir/owndiff-install.sh"
 ```
 
 If the latest-release link returns `404`, publish the first binary release with [Build and Release Binaries](#build-and-release-binaries).
@@ -147,7 +159,9 @@ owndiff install-agent-rules --repo /path/to/target/repo --agents all --verify
 If it is not installed yet, install to a user-writable bin directory first:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh | OWNDIFF_BIN_DIR="$HOME/.local/bin" sh
+tmp_dir="$(mktemp -d)"
+curl -fsSLo "$tmp_dir/owndiff-install.sh" https://raw.githubusercontent.com/owndiff/own-your-diff/main/install.sh
+OWNDIFF_BIN_DIR="$HOME/.local/bin" sh "$tmp_dir/owndiff-install.sh"
 "$HOME/.local/bin/owndiff" install-agent-rules --repo /path/to/target/repo --agents all --verify
 ```
 
@@ -155,7 +169,7 @@ The installer is configuration-driven through [configs/agent_install.yaml](confi
 
 ## Browser Review Demo
 
-End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the agent skill/plugin first, let the skill bootstrap the CLI when needed, run OwnDiff on the OpenClaw diff, answer validated multiple choice questions in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
+End-to-end replay against a local clone of [`openclaw/openclaw`](https://github.com/openclaw/openclaw): install the agent skill with `npx skills add`, run OwnDiff on the OpenClaw diff, answer validated multiple choice questions in the localhost browser review, pass the gate, then allow the agent to push or open a merge request.
 
 ![OwnDiff browser review demo](docs/assets/owndiff-browser-demo.gif)
 
@@ -274,7 +288,7 @@ No. It writes a local gate decision. The coding agent may push or open/update a 
 
 ### How do I answer multiple choice questions?
 
-Use `owndiff run --repo . --out-dir .owndiff`. When questions are pending, it opens a localhost browser review in your default browser so you can use hints, click answers, retry before submitting, and submit the gate there.
+Use `owndiff run --repo . --out-dir .owndiff`. When questions are pending, it opens a localhost browser review in a private/incognito browser window so you can use hints, click answers, retry before submitting, and submit the gate there.
 
 ## Build and Release Binaries
 
@@ -309,9 +323,9 @@ Each release asset must pass this harness before it is uploaded:
 | `owndiff-linux-arm64` | `ubuntu-24.04-arm` | Ubuntu 20.04 container | OpenClaw flow, build, command smoke tests, installer smoke test |
 | `owndiff-linux-x86_64` | `ubuntu-24.04` | Ubuntu 20.04 container | OpenClaw flow, build, command smoke tests, installer smoke test |
 
-Command smoke tests run `owndiff --version`, `owndiff run --help`, `owndiff install-agent-rules --help`, and `owndiff quiz-web --help`. Installer smoke tests run `install.sh` against the freshly built local asset through `OWNDIFF_DOWNLOAD_URL=file://...` and then run the same command smoke tests on the installed executable.
+Command smoke tests run `owndiff --version`, `owndiff run --help`, `owndiff install-agent-rules --help`, and `owndiff quiz-web --help`. Installer smoke tests run `install.sh` against the freshly built local asset through `OWNDIFF_LOCAL_ASSET=/absolute/path/to/asset`, verify the matching `.sha256` file, and then run the same command smoke tests on the installed executable.
 
-The main CI workflow also dry-runs `install.sh` for all supported asset names so installer detection stays aligned with release assets.
+The main CI workflow also dry-runs `install.sh` for all supported asset names so installer detection stays aligned with release assets. For release checks, run `python scripts/verify_release_assets.py --release-dir dist` locally after building artifacts; tagged releases run `python scripts/verify_release_assets.py --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME"` after publishing to verify every binary and `.sha256` sidecar.
 
 ## Development
 

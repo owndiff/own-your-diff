@@ -34,8 +34,8 @@ jobs:
         env:
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
           OWNDIFF_BINARY_NAME: owndiff
+          OWNDIFF_LOCAL_ASSET: ${{ github.workspace }}/dist/${{ matrix.asset }}
         run: |
-          export OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"
           sh install.sh
           "$OWNDIFF_BIN_DIR/owndiff" --version
           "$OWNDIFF_BIN_DIR/owndiff" run --help
@@ -46,7 +46,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.sha256
           if-no-files-found: error
 
   build-macos:
@@ -81,6 +83,9 @@ jobs:
       - name: Build executable
         run: python scripts/build_binary.py --name "${{ matrix.asset }}"
 
+      - name: Create executable checksum
+        run: shasum -a 256 "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.sha256"
+
       - name: Smoke test executable
         run: |
           ./dist/${{ matrix.asset }} --version
@@ -92,8 +97,8 @@ jobs:
         env:
           OWNDIFF_BIN_DIR: ${{ runner.temp }}/owndiff-bin
           OWNDIFF_BINARY_NAME: owndiff
+          OWNDIFF_LOCAL_ASSET: ${{ github.workspace }}/dist/${{ matrix.asset }}
         run: |
-          export OWNDIFF_DOWNLOAD_URL="file://${PWD}/dist/${{ matrix.asset }}"
           sh install.sh
           "$OWNDIFF_BIN_DIR/owndiff" --version
           "$OWNDIFF_BIN_DIR/owndiff" run --help
@@ -104,7 +109,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset }}
-          path: dist/${{ matrix.asset }}
+          path: |
+            dist/${{ matrix.asset }}
+            dist/${{ matrix.asset }}.sha256
           if-no-files-found: error
 
   publish:
@@ -119,6 +126,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:
@@ -129,6 +141,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" release-assets/* --generate-notes --verify-tag
+
+      - name: Verify published release assets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/verify_release_assets.py --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME"
 
   refresh-skills-sh:
     name: Refresh skills.sh listing

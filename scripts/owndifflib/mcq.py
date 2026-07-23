@@ -48,7 +48,7 @@ def generate_mcq_bundle(
         "warnings": warnings,
         "risk_level": risk.get("risk_level", "low"),
         "instructions": (
-            "Use owndiff run as the normal flow. It opens localhost browser review in the user's default browser when questions are pending. "
+            "Use owndiff run as the normal flow. It opens localhost browser review in a private/incognito browser window when questions are pending. "
             "Do not print multiple choice questions in chat or route the human to a separate multiple choice question command."
         ),
         "questions": mcq_questions,

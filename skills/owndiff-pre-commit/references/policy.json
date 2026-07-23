@@ -103,8 +103,27 @@
     "skills.sh.json",
     ".claude-plugin/plugin.json",
     ".codex-plugin/plugin.json",
-    "configs/default_config.yaml"
+    "configs/default_config.yaml",
+    "scripts/verify_release_assets.py"
   ],
+  "release_integrity": {
+    "expected_assets": [
+      "owndiff-darwin-arm64",
+      "owndiff-darwin-x86_64",
+      "owndiff-linux-arm64",
+      "owndiff-linux-x86_64"
+    ],
+    "installer_path": "install.sh",
+    "ci_workflow_path": ".github/workflows/ci.yml",
+    "release_workflow_path": ".github/workflows/release-binaries.yml",
+    "linux_build_script_path": "scripts/build_linux_release_binary.sh",
+    "verifier_path": "scripts/verify_release_assets.py",
+    "forbidden_installer_term_parts": [
+      ["OWNDIFF_", "DOWNLOAD_URL"],
+      ["OWNDIFF_", "CHECKSUM_URL"],
+      ["OWNDIFF_", "REPO"]
+    ]
+  },
   "version_sources": [
     {
       "path": "pyproject.toml",

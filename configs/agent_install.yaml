@@ -41,7 +41,7 @@ rule_body: |
 
   If "agent_may_push_merge_request" is false, use "OwnDiff Gate: Blocked" and set "Push/MR: blocked". If question generation is required, complete the agent LLM response step first; otherwise let the same OwnDiff run open browser review immediately.
 
-  Use the OwnDiff command above as the only multiple choice question review flow. When questions are pending, it starts a localhost review server and opens the human's default browser so they can use hints, click answers, retry before submitting, and submit the same local gate. The browser page keeps the answer key server-side and binds only to localhost.
+  Use the OwnDiff command above as the only multiple choice question review flow. When questions are pending, it starts a localhost review server and opens a private/incognito browser window so the review does not use an existing signed-in browser session. The human can use hints, click answers, retry before submitting, and submit the same local gate. The browser page keeps the answer key server-side and binds only to localhost.
 
   Interpret OwnDiff browser-review exit codes this way:
   - 0 means report-only or a passed evaluated gate.

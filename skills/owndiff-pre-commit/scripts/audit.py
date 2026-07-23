@@ -346,6 +346,98 @@ def run_checks(root: Path, checks: list[dict[str, Any]]) -> list[dict[str, Any]]
     return results
 
 
+def read_policy_file(root: Path, relative: str, findings: list[str], label: str) -> str:
+    path = root / relative
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        findings.append(f"{label} missing or unreadable: {relative}: {exc.__class__.__name__}")
+        return ""
+
+
+def release_integrity_findings(root: Path, policy: dict[str, Any]) -> list[str]:
+    if not policy:
+        return []
+
+    findings: list[str] = []
+    expected_assets = [str(asset) for asset in policy.get("expected_assets", [])]
+    if not expected_assets:
+        findings.append("Release integrity policy has no expected_assets")
+
+    installer_path = str(policy.get("installer_path", "install.sh"))
+    ci_path = str(policy.get("ci_workflow_path", ".github/workflows/ci.yml"))
+    release_path = str(policy.get("release_workflow_path", ".github/workflows/release-binaries.yml"))
+    linux_build_path = str(policy.get("linux_build_script_path", "scripts/build_linux_release_binary.sh"))
+    verifier_path = str(policy.get("verifier_path", "scripts/verify_release_assets.py"))
+
+    installer = read_policy_file(root, installer_path, findings, "Installer")
+    ci = read_policy_file(root, ci_path, findings, "CI workflow")
+    release = read_policy_file(root, release_path, findings, "Release workflow")
+    linux_build = read_policy_file(root, linux_build_path, findings, "Linux release build script")
+    verifier = read_policy_file(root, verifier_path, findings, "Release asset verifier")
+
+    for item in policy.get("forbidden_installer_term_parts", []):
+        if not isinstance(item, list):
+            continue
+        forbidden = "".join(str(part) for part in item)
+        if forbidden and forbidden in installer:
+            findings.append(f"Installer exposes forbidden remote override: {forbidden}")
+
+    required_installer_terms = [
+        "OWNDIFF_LOCAL_ASSET",
+        "OWNDIFF_EXPECTED_SHA256",
+        'checksum_url="${url}.sha256"',
+        "compute_sha256",
+        "checksum verification failed",
+    ]
+    for term in required_installer_terms:
+        if term not in installer:
+            findings.append(f"Installer missing release-integrity term: {term}")
+
+    required_ci_terms = [
+        "sha256sum dist/owndiff > dist/owndiff.sha256",
+        "OWNDIFF_LOCAL_ASSET:",
+    ]
+    for term in required_ci_terms:
+        if term not in ci:
+            findings.append(f"CI workflow missing release-integrity term: {term}")
+
+    required_release_terms = [
+        "dist/${{ matrix.asset }}.sha256",
+        'shasum -a 256 "dist/${{ matrix.asset }}" > "dist/${{ matrix.asset }}.sha256"',
+        "OWNDIFF_LOCAL_ASSET:",
+        "scripts/verify_release_assets.py",
+        '--repo "$GITHUB_REPOSITORY"',
+        '--tag "$GITHUB_REF_NAME"',
+        "release-assets/*",
+    ]
+    for term in required_release_terms:
+        if term not in release:
+            findings.append(f"Release workflow missing release-integrity term: {term}")
+
+    required_linux_build_terms = [
+        'sha256sum "./dist/${asset}" > "./dist/${asset}.sha256"',
+    ]
+    for term in required_linux_build_terms:
+        if term not in linux_build:
+            findings.append(f"Linux release build script missing release-integrity term: {term}")
+
+    required_verifier_terms = [
+        "verify_release_dir",
+        "verify_github_release",
+        "browser_download_url",
+        "checksum sidecar",
+    ]
+    for term in required_verifier_terms:
+        if term not in verifier:
+            findings.append(f"Release asset verifier missing term: {term}")
+    for asset in expected_assets:
+        if asset not in verifier:
+            findings.append(f"Release asset verifier missing expected asset: {asset}")
+
+    return findings
+
+
 def audit(
     root: Path,
     policy: dict[str, Any],
@@ -398,6 +490,7 @@ def audit(
             findings.extend(validate_markdown_links(root, path, text))
 
     findings.extend(version_findings(root, policy.get("version_sources", [])))
+    findings.extend(release_integrity_findings(root, policy.get("release_integrity", {})))
     history_checked = 0
     if scan_history:
         history_excluded = [str(item) for item in policy.get("history_excluded_paths", [])]

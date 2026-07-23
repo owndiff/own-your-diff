@@ -84,3 +84,6 @@ echo "Smoke testing ${asset}..."
 "./dist/${asset}" run --help
 "./dist/${asset}" install-agent-rules --help
 "./dist/${asset}" quiz-web --help
+
+echo "Writing ${asset}.sha256..."
+sha256sum "./dist/${asset}" > "./dist/${asset}.sha256"

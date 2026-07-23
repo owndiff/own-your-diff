@@ -29,15 +29,20 @@ If nothing is staged yet, omit `--staged` for the first diagnostic pass. Stage o
 
 The leak audit must cover the current tracked tree, staged diff, unstaged diff, untracked release candidates, and Git history reachable from all local refs. High-confidence private paths or credential patterns are blockers. Redaction markers and secret-adjacent examples are warnings; inspect their context without printing matched text, then remove accidental leaks or document why the warning is an intentional test, security rule, or sanitization example.
 
-5. Verify documentation semantically:
+5. For release work, verify binary integrity before continuing:
+   - Run `python scripts/verify_release_assets.py --release-dir dist` after local release assets are built.
+   - After publishing a tag, run `python scripts/verify_release_assets.py --repo owndiff/own-your-diff --tag <tag>`.
+   - Treat a missing binary, missing `.sha256` sidecar, invalid checksum file, or checksum mismatch as a release blocker.
+   - The deterministic audit also checks that CI/release workflows keep this verification wired in.
+6. Verify documentation semantically:
    - Map behavior claims to current code, config, tests, or observed command output.
    - Verify unstable install syntax with the installed CLI's `--help` first.
    - When local help is unavailable, use only the agent vendor's official documentation and cite it in the work log.
    - Do not claim an agent, command, browser review, or workflow was tested unless it actually ran.
    - Remove a document or asset only when it is duplicated, stale, unreferenced, generated, or outside the product's supported workflow. Preserve `README.md`, `SKILL.md`, `SECURITY.md`, `CONTRIBUTING.md`, licenses, manifests, and referenced media unless evidence shows they are obsolete.
-6. Run OwnDiff on the exact candidate diff. For medium/high/critical risk, use the active agent model to generate every question and answer choice, validate the response, and complete the real browser review gate.
-7. Re-run the audit, tests, skill/plugin validators, and leak audit after every correction.
-8. Report:
+7. Run OwnDiff on the exact candidate diff. For medium/high/critical risk, use the active agent model to generate every question and answer choice, validate the response, and complete the real browser review gate.
+8. Re-run the audit, tests, skill/plugin validators, release-asset verification when applicable, and leak audit after every correction.
+9. Report:
    - changed and removed files;
    - documentation claims verified and their evidence;
    - test and validator results;

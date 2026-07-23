@@ -6,12 +6,12 @@ import base64
 import html
 import json
 import os
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
-import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -86,11 +86,19 @@ def main(argv: list[str] | None = None) -> int:
         server = ThreadingHTTPServer((args.host, args.port), handler)
         server.timeout = 0.25
         url = f"http://{server.server_address[0]}:{server.server_address[1]}/?token={urllib.parse.quote(token)}"
-        print(f"OwnDiff browser review: {url}", file=sys.stderr, flush=True)
-        if not args.no_open_browser:
+        if args.no_open_browser:
+            print(f"OwnDiff browser review: {url}", file=sys.stderr, flush=True)
+        else:
             opened = _open_browser(url)
             if not opened:
-                print("OwnDiff could not open the default browser automatically; use the localhost URL above.", file=sys.stderr, flush=True)
+                print(
+                    "OwnDiff could not open a private/incognito browser window automatically. "
+                    f"Open this localhost URL in a private/incognito browser window: {url}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+            else:
+                print("OwnDiff browser review opened in a private/incognito browser window.", file=sys.stderr, flush=True)
 
         deadline = time.monotonic() + int(args.timeout_seconds)
         while not state.done.is_set() and time.monotonic() < deadline:
@@ -198,8 +206,13 @@ def _handler_for(state: ReviewState) -> type[BaseHTTPRequestHandler]:
             self.send_response(status)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
-            self.send_header("Cache-Control", "no-store")
+            self.send_header("Cache-Control", "no-store, max-age=0")
+            self.send_header("Pragma", "no-cache")
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+            self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
             script_src = f"script-src 'nonce-{nonce}'" if nonce else "script-src 'none'"
             self.send_header(
                 "Content-Security-Policy",
@@ -387,11 +400,10 @@ def terminal_app_from_env(env: dict[str, str]) -> str | None:
 
 
 def _open_browser(url: str) -> bool:
-    open_command = _browser_open_command()
-    if open_command:
+    for open_command in _private_browser_open_commands(url):
         try:
             proc = subprocess.run(
-                [*open_command, url],
+                open_command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
@@ -401,19 +413,31 @@ def _open_browser(url: str) -> bool:
                 return True
         except (OSError, subprocess.SubprocessError):
             pass
-
-    try:
-        return bool(webbrowser.open(url, new=1, autoraise=True))
-    except webbrowser.Error:
-        return False
+    return False
 
 
-def _browser_open_command() -> list[str] | None:
+def _private_browser_open_commands(url: str) -> list[list[str]]:
     if sys.platform == "darwin":
-        return ["/usr/bin/open"]
+        return [
+            ["/usr/bin/open", "-na", "Google Chrome", "--args", "--incognito", "--new-window", url],
+            ["/usr/bin/open", "-na", "Google Chrome Canary", "--args", "--incognito", "--new-window", url],
+            ["/usr/bin/open", "-na", "Brave Browser", "--args", "--incognito", "--new-window", url],
+            ["/usr/bin/open", "-na", "Microsoft Edge", "--args", "--inprivate", "--new-window", url],
+            ["/usr/bin/open", "-na", "Chromium", "--args", "--incognito", "--new-window", url],
+            ["/usr/bin/open", "-na", "Firefox", "--args", "--private-window", url],
+        ]
     if sys.platform.startswith("linux"):
-        return ["xdg-open"]
-    return None
+        candidates = [
+            ("google-chrome", ["--incognito", "--new-window", url]),
+            ("google-chrome-stable", ["--incognito", "--new-window", url]),
+            ("chromium", ["--incognito", "--new-window", url]),
+            ("chromium-browser", ["--incognito", "--new-window", url]),
+            ("brave-browser", ["--incognito", "--new-window", url]),
+            ("microsoft-edge", ["--inprivate", "--new-window", url]),
+            ("firefox", ["--private-window", url]),
+        ]
+        return [[executable, *args] for executable, args in candidates if shutil.which(executable)]
+    return []
 
 
 def _review_script(nonce: str, total: int) -> str:

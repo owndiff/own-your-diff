@@ -39,8 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("web", "none"),
         default="web",
         help=(
-            "Review UI when questions are pending. Default: web, a localhost browser review opened in the user's "
-            "default browser. Use none only for automated tests or CI checks."
+            "Review UI when questions are pending. Default: web, a localhost browser review opened in a "
+            "private/incognito browser window. Use none only for automated tests or CI checks."
         ),
     )
     parser.add_argument(
